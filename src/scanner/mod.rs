@@ -23,6 +23,7 @@ pub enum Token {
     And,
     Or,
     Comment, // To make it easier to return from scan_forward_slash().
+    Whitespace, // To make scan() implementation simpler.
 }
 
 /// Cursor keeps track of the index we are reading from source file.
@@ -93,7 +94,7 @@ pub fn scan(source: &String) -> Vec<Token> {
             '0'..='9' => { scan_number(&mut cursor) } // 0-9
             '.' => { scan_dot(&mut cursor) }
             '"' => { scan_string(&mut cursor) }
-            // CHECK FOR WHITESPACE
+            ' ' | '\n' | '\r' | '\t' => { Token::Whitespace }
             _ => { // All other characters that are not recognized.
                 Token::Unknown { value: String::from(format!("Unrecognized character: {:?}", c)) }
             }
@@ -104,8 +105,6 @@ pub fn scan(source: &String) -> Vec<Token> {
         cursor.inc();
         current = cursor.peek();
     }
-
-    println!("Index: {:?}", cursor.index);
 
     tokens
 }
@@ -131,13 +130,16 @@ pub fn scan_string(cursor: &mut Cursor) -> Token {
             };
         } else if c == '\\' {
             if let Some(ch) = cursor.next() { // There is a character after escape character
-                // This needs to make sure that the escaped character actually exists
+                /*
+                This needs to make sure that the escaped character actually exists.
+                Not all special characters are handled but this should be enough
+                to cover all use cases.
+                 */
                 let c_to_add = match ch {
                     'n' => { '\n' }  // New line
                     '"' => { '\"' }  // Quotation mark
                     '\\' => { '\\' } // Backslash
                     'r' => { '\r' }  // Carriage return
-                    '0' => { '\0' }  // Null
                     't' => { '\t' }  // Tab
                     _ => { '?' }     // Unknown escaped character
                 };
@@ -159,6 +161,7 @@ pub fn scan_string(cursor: &mut Cursor) -> Token {
                     s.push(c_to_add)
                 }
             } else { // EOF after escape character
+                s.push(c);
                 return Token::Unknown {
                     value: format!("String literal missing escaped character and ending quotation mark: {}", s)
                 };
@@ -284,7 +287,7 @@ pub fn scan_forward_slash(cursor: &mut Cursor) -> Token {
                     /*
                     Comment ending character was not found before EOF.
                      */
-                    return Token::Unknown {value: String::from(format!("Unexpected end of file before ending of multiline comment: {}", err_val))};
+                    return Token::Unknown { value: String::from(format!("Unexpected end of file before ending of multiline comment: {}", err_val)) };
                 }
 
                 Token::Comment
@@ -331,7 +334,7 @@ pub fn scan_number(cursor: &mut Cursor) -> Token {
                 }
             }
 
-            return Token::Unknown { value: format!("Invalid number suffix in: {}",s) };
+            return Token::Unknown { value: format!("Invalid number suffix in: {}", s) };
         } else if add == '!' {
             break; // Break without cursor.inc() to let scan() deal with next char.
         } else {
