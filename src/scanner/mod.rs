@@ -21,9 +21,10 @@ pub enum Token {
     Multiply,
     Divide,
     And,
-    Or,
-    Comment, // To make it easier to return from scan_forward_slash().
-    Whitespace, // To make scan() implementation simpler.
+    Not,
+    LessThan,
+    Comment,
+    Whitespace,
 }
 
 /// Cursor keeps track of the index we are reading from source file.
@@ -87,7 +88,8 @@ pub fn scan(source: &String) -> Vec<Token> {
             '*' => { Token::Multiply }
             '/' => { scan_forward_slash(&mut cursor) }
             '&' => { Token::And }
-            '|' => { Token::Or }
+            '!' => { Token::Not }
+            '<' => { Token::LessThan }
             ';' => { Token::Semicolon }
             ':' => { scan_colon(&mut cursor) }
             'A'..='Z' | 'a'..='z' => { scan_variable(&mut cursor) } // A-Z|a-z
