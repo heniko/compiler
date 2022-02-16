@@ -62,6 +62,21 @@ impl Cursor {
     }
 }
 
+/// Returns scan() results without the Whitespace or Comment tokens.
+pub fn scan_clean(source: &String) -> Vec<Token> {
+    /*
+    Whitespace and Comment tokens are mostly used
+    in order to make the implementation simpler to write.
+    After the scanner has classified those tokens
+    they are not useful anymore for the parsing phase
+    so this function returns the 'cleaned' list of tokens.
+     */
+    scan(&source)
+        .into_iter()
+        .filter(|x| x != &Token::Whitespace && x != &Token::Comment)
+        .collect()
+}
+
 /// The scanner that takes in source file as one string and returns the tokens.
 pub fn scan(source: &String) -> Vec<Token> {
     /*

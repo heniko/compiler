@@ -364,3 +364,13 @@ fn assign_complex_string_literal() {
     ];
     assert_eq!(res, exp)
 }
+
+#[test]
+fn scan_clean_cleans_whitespace_and_comments() {
+    let res = scan_clean(&String::from("var hello/*wor\n*///ld!"));
+    let exp = vec![
+        Token::Keyword { value: String::from("var") },
+        Token::Variable { value: String::from("hello") },
+    ];
+    assert_eq!(res, exp)
+}
