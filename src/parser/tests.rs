@@ -80,3 +80,48 @@ fn int_variable_with_simple_expression_assign(){
 
     assert_eq!(res1, exp1);
 }
+
+#[test]
+fn end_for_loop_statement(){
+    let mut input = scan_clean(&String::from("end for;"));
+    input.reverse();
+    let res = parse(&mut input);
+    let exp = Tree::Stmts {
+        value: vec![
+            Tree::End
+        ]
+    };
+    assert_eq!(res, exp);
+}
+
+#[test]
+fn simple_start_for_loop(){
+    let mut input=scan_clean(&String::from("for x in 0..20 do"));
+    input.reverse();
+    let res = parse(&mut input);
+    let exp=Tree::Stmts {
+        value: vec![
+            Tree::Stmt {
+                value: vec![
+                    Tree::For,
+                    Tree::Id {value:String::from("x")},
+                    Tree::Expr {
+                        value: Box::from(
+                            Tree::Number {
+                                value:0
+                            }
+                        )
+                    },
+                    Tree::Expr {
+                        value: Box::from(
+                            Tree::Number {
+                                value:20
+                            }
+                        )
+                    }
+                ]
+            }
+        ]
+    };
+    assert_eq!(res, exp);
+}
