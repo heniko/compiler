@@ -2,7 +2,7 @@
 mod tests;
 
 /// Enum contains all possible tokens and those that can have unique values also have value field.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Token {
     String { value: String },
     Variable { value: String },
