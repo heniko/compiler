@@ -5,7 +5,7 @@ use scanner::{scan_clean, Token};
 use parser::{Tree};
 
 fn main() {
-    let source = String::from("var hi : int := 42;\nread hi;\nprint hi;");
+    let source = String::from("var hi : int := 42;\nread hi;\nprint 20;var hello: string;");
 
     /*
     Use scanner to find tokens. Check if scanner

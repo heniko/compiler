@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use crate::scanner::{Token};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -146,11 +145,32 @@ pub fn parse_var(tokens: &mut Vec<Token>) -> Tree {
         return parse_error(tokens, String::from("Error while parsing variable: Expected keyword."), err);
     }
 
-    // Check that next token is Assign
-    if let Some(Token::Assign) = tokens.last() {
+    /*
+    Check that next token exists since we are either
+    expecting Semicolon to end the line or Assign
+    followed by expression to assign some value to
+    the variable the programmer is initializing.
+     */
+    if let Some(token) = tokens.last() {
+        match token {
+            Token::Assign => {
+                err.push(tokens.pop().unwrap());
+            }
+            Token::Semicolon => {
+                return Tree::Stmt {
+                    value: stmt
+                };
+            }
+            _ => {
+                return parse_error(
+                    tokens,
+                    String::from("Error while parsing variable: Expected semicolon or assign."),
+                    err);
+            }
+        }
         err.push(tokens.pop().unwrap());
     } else {
-        return parse_error(tokens, String::from("Error while parsing variable: Expected assign."), err);
+        return parse_error(tokens, String::from("Error while parsing variable: Expected semicolon or assign."), err);
     }
 
     // Parse following expression
@@ -170,9 +190,25 @@ pub fn parse_for(tokens: &mut Vec<Token>) -> Tree {
 
 /// Parser for statement starting with keyword 'read'
 pub fn parse_read(tokens: &mut Vec<Token>) -> Tree {
+    let mut err = vec![tokens.pop().unwrap()];
+    let mut stmt = vec![Tree::Read];
+
+    // Check that the next token is variable
+    if let Some(Token::Variable { value }) = tokens.last() {
+        stmt.push(Tree::Id { value: value.clone() });
+        err.push(tokens.pop().unwrap());
+    } else {
+        return parse_error(tokens, String::from("Error while parsing read statement: Expected identifier."), err);
+    }
+
+    if let Some(Token::Semicolon) = tokens.last() {
+        /* Do nothing as the statement is complete */
+    } else {
+        return parse_error(tokens, String::from("Error while parsing read statement: Expected semicolon."), err);
+    }
 
     Tree::Stmt {
-        value: vec![Tree::Read, parse_expr(tokens)]
+        value: stmt
     }
 }
 
@@ -184,6 +220,7 @@ pub fn parse_print(tokens: &mut Vec<Token>) -> Tree {
     so we just need to pass tokens for expression
     parser.
      */
+    tokens.pop(); // pop() print token
     Tree::Stmt {
         value: vec![Tree::Print, parse_expr(tokens)]
     }
