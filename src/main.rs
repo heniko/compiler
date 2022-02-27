@@ -35,6 +35,8 @@ fn main() {
     parser returned errors and if so print error
     messages and exit program early.
      */
+    dbg!(tokens.clone());
+
     tokens.reverse();
     let tree = parser::parse(&mut tokens);
 

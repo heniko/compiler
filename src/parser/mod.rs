@@ -1,5 +1,8 @@
 use crate::scanner::{Token};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum Tree {
     Error { value: Vec<Token>, message: String },
@@ -81,6 +84,9 @@ pub fn parse_keyword(tokens: &mut Vec<Token>) -> Tree {
                 }
                 "assert" => {
                     parse_assert(tokens)
+                }
+                "end" => {
+                    parse_end(tokens)
                 }
                 _ => {
                     parse_error(
@@ -168,7 +174,6 @@ pub fn parse_var(tokens: &mut Vec<Token>) -> Tree {
                     err);
             }
         }
-        err.push(tokens.pop().unwrap());
     } else {
         return parse_error(tokens, String::from("Error while parsing variable: Expected semicolon or assign."), err);
     }
@@ -228,6 +233,12 @@ pub fn parse_print(tokens: &mut Vec<Token>) -> Tree {
 
 /// Parser for statement starting with keyword 'assert'
 pub fn parse_assert(tokens: &mut Vec<Token>) -> Tree {
+    Tree::Stmt {
+        value: Vec::new()
+    }
+}
+
+pub fn parse_end(tokens: &mut Vec<Token>) -> Tree {
     Tree::Stmt {
         value: Vec::new()
     }
