@@ -4,9 +4,8 @@ mod tests;
 /// Enum contains all possible tokens and those that can have unique values also have value field.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Token {
-    String { value: String },
+    StringLiteral { value: String },
     Variable { value: String },
-    Keyword { value: String },
     Number { value: i32 },
     Unknown { value: String },
     Assign,
@@ -25,6 +24,17 @@ pub enum Token {
     LessThan,
     Comment,
     Whitespace,
+    Var,
+    For,
+    End,
+    In,
+    Do,
+    Read,
+    Print,
+    Int,
+    String,
+    Bool,
+    Assert,
 }
 
 /// Cursor keeps track of the index we are reading from source file.
@@ -204,7 +214,7 @@ pub fn scan_string(cursor: &mut Cursor) -> Token {
         };
     }
 
-    Token::String { value: s }
+    Token::StringLiteral { value: s }
 }
 
 /// Scans colon and returns either Colon for ':' or Assign for ':='.
@@ -400,33 +410,18 @@ pub fn scan_variable(cursor: &mut Cursor) -> Token {
         }
     }
 
-    if is_keyword(&s) {
-        Token::Keyword { value: s }
-    } else {
-        Token::Variable { value: s }
-    }
-}
-
-/// Checks if variable is a keyword.
-pub fn is_keyword(s: &String) -> bool {
-    /*
-    Not the optimal way of doing this since
-    this list will be created for each check
-    of keywords but shouldn't be too bad since
-    the language doesn't have too many keywords.
-     */
-    let words = vec![
-        String::from("var"),
-        String::from("for"),
-        String::from("end"),
-        String::from("in"),
-        String::from("do"),
-        String::from("read"),
-        String::from("print"),
-        String::from("int"),
-        String::from("string"),
-        String::from("bool"),
-        String::from("assert"),
-    ];
-    return words.contains(s);
+    return match s.as_str() {
+        "var" => { Token::Var }
+        "for" => { Token::For }
+        "end" => { Token::End }
+        "in" => { Token::In }
+        "do" => { Token::Do }
+        "read" => { Token::Read }
+        "print" => { Token::Print }
+        "int" => { Token::Int }
+        "string" => { Token::String }
+        "bool" => { Token::Bool }
+        "assert" => { Token::Assert }
+        _ => { Token::Variable { value: s } }
+    };
 }

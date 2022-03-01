@@ -37,8 +37,12 @@ pub fn parse(tokens: &mut Vec<Token>) -> Tree {
 
             while let Some(token) = tokens.last() {
                 stmts.push(match token {
-                    Token::Variable{value} => {parse_assign(tokens)}
-                    Token::Keyword { value } => { parse_keyword(tokens) }
+                    Token::Variable { value } => { parse_assign(tokens) }
+                    Token::Var => { parse_var(tokens) }
+                    Token::For => { parse_for(tokens) }
+                    Token::Read => { parse_read(tokens) }
+                    Token::Print => { parse_print(tokens) }
+                    Token::Assert => { parse_assert(tokens) }
                     _ => { parse_error(tokens, String::from("Unknown starting token for a statement."), Vec::new()) }
                 });
 
@@ -67,59 +71,8 @@ pub fn parse_error(tokens: &mut Vec<Token>, message: String, mut error_tokens: V
     }
 }
 
-/// Parser for statement that starts with a keyword.
-/// Will return either Token::Statement or Token::Error.
-pub fn parse_keyword(tokens: &mut Vec<Token>) -> Tree {
-    if let Some(token) = tokens.last() {
-        if let Token::Keyword { value } = token {
-            match value.as_str() {
-                "var" => {
-                    parse_var(tokens)
-                }
-                "for" => {
-                    parse_for(tokens)
-                }
-                "read" => {
-                    parse_read(tokens)
-                }
-                "print" => {
-                    parse_print(tokens)
-                }
-                "assert" => {
-                    parse_assert(tokens)
-                }
-                "end" => {
-                    parse_end(tokens)
-                }
-                _ => {
-                    parse_error(
-                        tokens,
-                        String::from("Starting statement with keyword that cannot start statement."),
-                        Vec::new())
-                }
-            }
-        } else {
-            /*
-            This branch will only be reached if parse_keyword()
-            is called with a list containing some other token
-            than Token::Keyword so in normal scenarios this
-            should never be reached.
-             */
-            panic!("parse_keyword() was called with other token than Token::Keyword!");
-        }
-    } else {
-        /*
-        This else branch will only be executed when
-        parse_keyword() is called with an empty input
-        vector which should normally not happen since
-        parse() will only call this method when current
-        token is a keyword.
-         */
-        panic!("parse_keyword() was called with an empty input vector!");
-    }
-}
-
-pub fn parse_assign(tokens:&mut Vec<Token>) ->Tree{
+/// Parser for '<identifier> := <expression>;'
+pub fn parse_assign(tokens: &mut Vec<Token>) -> Tree {
     // TODO: Implement parse_assign()
     Tree::Stmt {
         value: Vec::new()
@@ -149,11 +102,11 @@ pub fn parse_var(tokens: &mut Vec<Token>) -> Tree {
     }
 
     // Check that next token is Keyword of one of the types int, string or bool
-    if let Some(Token::Keyword { value }) = tokens.last() {
-        match value.as_str() {
-            "int" => { stmt.push(Tree::Int) }
-            "string" => { stmt.push(Tree::String) }
-            "bool" => { stmt.push(Tree::Bool) }
+    if let Some(token) = tokens.last() {
+        match token {
+            Token::Int => { stmt.push(Tree::Int) }
+            Token::String => { stmt.push(Tree::String) }
+            Token::Bool => { stmt.push(Tree::Bool) }
             _ => { return parse_error(tokens, String::from("Error while parsing variable: Expected type keyword."), err); }
         };
         err.push(tokens.pop().unwrap());
@@ -210,11 +163,8 @@ pub fn parse_for(tokens: &mut Vec<Token>) -> Tree {
     }
 
     // Expect keyword 'in'
-    if let Some(Token::Keyword { value} ) = tokens.last() {
-        match value.as_str() {
-            "in"=>{err.push(tokens.pop().unwrap())}
-            _=>{return parse_error(tokens, String::from("Error while parsing for loop start: Expected keyword 'in'."), err);}
-        }
+    if let Some(Token::In) = tokens.last() {
+        err.push(tokens.pop().unwrap());
     } else {
         return parse_error(tokens, String::from("Error while parsing for loop start: Expected keyword 'in'."), err);
     }
@@ -223,9 +173,9 @@ pub fn parse_for(tokens: &mut Vec<Token>) -> Tree {
     stmt.push(parse_expr(tokens));
 
     // Expect dots
-    if let Some(Token::Dots)=tokens.last() {
+    if let Some(Token::Dots) = tokens.last() {
         err.push(tokens.pop().unwrap());
-    }else {
+    } else {
         return parse_error(tokens, String::from("Error while parsing for loop start: Expected dots."), err);
     }
 
@@ -233,11 +183,8 @@ pub fn parse_for(tokens: &mut Vec<Token>) -> Tree {
     stmt.push(parse_expr(tokens));
 
     // Expect keyword 'do'
-    if let Some(Token::Keyword { value} ) = tokens.last() {
-        match value.as_str() {
-            "do"=>{/* For start scanned */}
-            _=>{return parse_error(tokens, String::from("Error while parsing for loop start: Expected keyword 'do'."), err);}
-        }
+    if let Some(Token::Do) = tokens.last() {
+        /* Do nothing */
     } else {
         return parse_error(tokens, String::from("Error while parsing for loop start: Expected keyword 'do'."), err);
     }
@@ -283,7 +230,7 @@ pub fn parse_print(tokens: &mut Vec<Token>) -> Tree {
     Tree::Stmt {
         value: vec![
             Tree::Print,
-            parse_expr(tokens)
+            parse_expr(tokens),
         ]
     }
 }
@@ -293,20 +240,18 @@ pub fn parse_assert(tokens: &mut Vec<Token>) -> Tree {
     Tree::Stmt {
         value: vec![
             Tree::Assert,
-            parse_expr(tokens)
+            parse_expr(tokens),
         ]
     }
 }
 
+/// Parser for for end statement
 pub fn parse_end(tokens: &mut Vec<Token>) -> Tree {
     let mut err = vec![tokens.pop().unwrap()];
 
     // Check that next token is Keyword 'for'
-    if let Some(Token::Keyword { value }) = tokens.last() {
-        match value.as_str() {
-            "for" => { err.push(tokens.pop().unwrap()); }
-            _ => { return parse_error(tokens, String::from("Error while parsing end statement: Expected keyword 'for'."), err); }
-        }
+    if let Some(Token::For) = tokens.last() {
+        err.push(tokens.pop().unwrap());
     } else {
         return parse_error(tokens, String::from("Error while parsing end statement: Expected keyword 'for'."), err);
     }
@@ -319,6 +264,7 @@ pub fn parse_end(tokens: &mut Vec<Token>) -> Tree {
     };
 }
 
+/// Parser for expression
 pub fn parse_expr(tokens: &mut Vec<Token>) -> Tree {
     /*
     For now only scan for one number and expect it to be the end.

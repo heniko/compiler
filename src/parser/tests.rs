@@ -3,7 +3,7 @@ use crate::scanner::{scan_clean};
 
 
 #[test]
-fn variable_without_initial_assigned__value() {
+fn variable_without_initial_assigned_value() {
     let mut input1 = scan_clean(&String::from("var hello : int;"));
     input1.reverse();
     let res1 = parse(&mut input1);
@@ -81,6 +81,7 @@ fn int_variable_with_simple_expression_assign(){
     assert_eq!(res1, exp1);
 }
 
+/*
 #[test]
 fn end_for_loop_statement(){
     let mut input = scan_clean(&String::from("end for;"));
@@ -93,6 +94,7 @@ fn end_for_loop_statement(){
     };
     assert_eq!(res, exp);
 }
+*/
 
 #[test]
 fn simple_start_for_loop(){
