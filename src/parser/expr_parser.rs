@@ -69,18 +69,17 @@ impl Expression {
         Implementation based on example from
         https://craftinginterpreters.com/parsing-expressions.html
 
-        Parentheses
-        Unary
-        Mul/Div
-        Plus/Minus
-        Comparison
-        Equality
-        And
+        <expression> ::= <and>
          */
         self.and()
     }
 
     fn and(&mut self) -> Expr {
+        /*
+        <and> ::= <and> "&" <equality>
+        <and> ::= <equality> "&" <equality>
+        <and> ::= <equality>
+         */
         let mut expr = self.equality();
 
         while self.cursor.matches(vec![Expr::And]) {
@@ -95,6 +94,11 @@ impl Expression {
     }
 
     fn equality(&mut self) -> Expr {
+        /*
+        <equality> ::= <equality> "=" <comparison>
+        <equality> ::= <comparison> "=" <comparison>
+        <equality> ::= <comparison>
+         */
         let mut expr = self.comparison();
 
         while self.cursor.matches(vec![Expr::Eq]) {
@@ -109,6 +113,11 @@ impl Expression {
     }
 
     fn comparison(&mut self) -> Expr {
+        /*
+        <comparison> ::= <comparison> ">" <term>
+        <comparison> ::= <term> ">" <term>
+        <comparison> ::= <term>
+         */
         let mut expr = self.term();
 
         while self.cursor.matches(vec![Expr::Less]) {
@@ -123,6 +132,11 @@ impl Expression {
     }
 
     fn term(&mut self) -> Expr {
+        /*
+        <term> ::= <term> "+" | "-"
+        <term> ::= <factor> "+" | "-" <factor>
+        <term> ::= <factor>
+         */
         let mut expr = self.factor();
 
         while self.cursor.matches(vec![Expr::Plus, Expr::Minus]) {
@@ -137,6 +151,11 @@ impl Expression {
     }
 
     fn factor(&mut self) -> Expr {
+        /*
+        <factor> ::= <factor> "*" | "/" <unary>
+        <factor> ::= <unary> "*" | "/" <unary>
+        <factor> ::= <unary>
+         */
         let mut expr = self.unary();
 
         while self.cursor.matches(vec![Expr::Mul, Expr::Div]) {
@@ -151,6 +170,10 @@ impl Expression {
     }
 
     fn unary(&mut self) -> Expr {
+        /*
+        <unary> ::= "" | "-" | "!" <primary>
+        <unary> ::= <primary>
+         */
         if self.cursor.matches(vec![Expr::Not, Expr::Minus]) {
             let mut op = self.cursor.previous();
             let mut r = self.unary();
@@ -160,6 +183,9 @@ impl Expression {
     }
 
     fn primary(&mut self) -> Expr {
+        /*
+        <primary> ::= <string> | <number> | <variable> | "(" <expression> ")"
+         */
         let ex = self.cursor.peek();
         let e = ex.clone();
         return match ex {

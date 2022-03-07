@@ -1,23 +1,27 @@
 mod scanner;
 mod parser;
 
-use scanner::{scan_clean, Token};
+use scanner::{Scanner, Token};
 use parser::{Tree};
 
 fn main() {
     //let source = String::from("var hi : int := 42;");
     //let source=String::from("for i in 1..12 do\nvar j : int := 42;\nend for;");
     //let source = String::from("var hi : int;");
-    //let source = String::from("for i in 1..12 do\nfor j in 1..12 do\nvar i : int := 42;\nend for;\nend for;");
-    let source = String::from("var i:bool:=1+(1+1)*2;");
+    let source = String::from("for i in 1..12 do\nfor j in 1..12 do\nvar i : int := 42;\nend for;\nend for;");
+    //let source = String::from("var i:bool:=1+(1+1)*2;");
 
     /*
     Use scanner to find tokens. Check if scanner
     found unrecognized tokens and if so report
     errors and exit program early.
      */
-    let mut tokens = scan_clean(&source);
+    let mut scanner = Scanner::from(&source);
+    scanner.scan();
+    let mut tokens = scanner.tokens;
     let mut scanner_errors = 0;
+
+    dbg!(scanner.positions);
 
     for token in tokens.iter() {
         match token {

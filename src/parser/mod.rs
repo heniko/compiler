@@ -67,14 +67,52 @@ pub enum Tree {
     End,
 }
 
-/// Creates parse tree for the input token vector.
+/// Creates the AST for given vector of tokens.
 pub fn parse(tokens: &mut Vec<Token>) -> Tree {
     /*
-    Statements is basically a linked list
-    so it can easily be implemented as a
-    vector.
+    <statements> ::= <statement><statements> // Implemented as vector
+    <statements> ::= <statement>
 
-    <stmts> ::= <stmt><stmts>
+    <statement> ::= "var" <var_id> ":" <var_type> ";"
+    <statement> ::= "var" <var_id> ":" <var_type> ":=" <expression> ";"
+    <statement> ::= "for" <var_id> "in" <expression> ".." <expression> "do" <statements> <end_for>
+    <statement> ::= "read" <var_id> ";"
+    <statement> ::= "print" <expression> ";"
+    <statement> ::= "assert" <expression> ";"
+    <statement> ::= <var_id> ":=" <expression> ";"
+
+    <var_type> ::= "int" | "bool" | "string"
+
+    <end_for> ::= "end" "for" ";"
+
+    <var_id> ::= <id>
+
+    <expression> ::= <and>
+
+    <and> ::= <and> "&" <equality>
+    <and> ::= <equality> "&" <equality>
+    <and> ::= <equality>
+
+    <equality> ::= <equality> "=" <comparison>
+    <equality> ::= <comparison> "=" <comparison>
+    <equality> ::= <comparison>
+
+    <comparison> ::= <comparison> ">" <term>
+    <comparison> ::= <term> ">" <term>
+    <comparison> ::= <term>
+
+    <term> ::= <term> "+" | "-"
+    <term> ::= <factor> "+" | "-" <factor>
+    <term> ::= <factor>
+
+    <factor> ::= <factor> "*" | "/" <unary>
+    <factor> ::= <unary> "*" | "/" <unary>
+    <factor> ::= <unary>
+
+    <unary> ::= "" | "-" | "!" <primary>
+    <unary> ::= <primary>
+
+    <primary> ::= <string> | <number> | <variable> | "(" <expression> ")"
      */
     Tree::Statements {
         value: {
@@ -99,9 +137,10 @@ pub fn parse(tokens: &mut Vec<Token>) -> Tree {
     }
 }
 
-/// Similar to parse but returns the statements on 'end for;'.
-/// This function aims to make nested loops easy to implement.
-pub fn parse_loop_statements(tokens: &mut Vec<Token>) -> Box<Tree> {
+fn parse_loop_statements(tokens: &mut Vec<Token>) -> Box<Tree> {
+    /*
+    Similar to parse() but has added functionality for ending loops.
+     */
     let mut stmts: Vec<Tree> = Vec::new();
 
     while let Some(token) = tokens.last() {
@@ -122,7 +161,7 @@ pub fn parse_loop_statements(tokens: &mut Vec<Token>) -> Box<Tree> {
     }
 
     if let Some(Tree::End) = stmts.last() {
-        /* Do nothing as loop was ended correctly */
+        stmts.pop(); // Pop Tree::End since it has no actual use
     } else {
         stmts.push(Tree::Error { tokens: Vec::new(), message: String::from("EOF before closing for loop.") })
     }
@@ -132,8 +171,7 @@ pub fn parse_loop_statements(tokens: &mut Vec<Token>) -> Box<Tree> {
     })
 }
 
-/// Find the next line ending and return all tokens (excluding the semicolon since we let parse() pop it) as error.
-pub fn parse_error(tokens: &mut Vec<Token>, message: String, mut error_tokens: Vec<Token>) -> Tree {
+fn parse_error(tokens: &mut Vec<Token>, message: String, mut error_tokens: Vec<Token>) -> Tree {
     Tree::Error {
         message,
         tokens: {
@@ -149,8 +187,10 @@ pub fn parse_error(tokens: &mut Vec<Token>, message: String, mut error_tokens: V
     }
 }
 
-/// Parser for '<identifier> := <expression>;'
-pub fn parse_assign(tokens: &mut Vec<Token>) -> Tree {
+fn parse_assign(tokens: &mut Vec<Token>) -> Tree {
+    /*
+    <statement> ::= <var_id> ":=" <expression> ";"
+     */
     let mut var_name = String::from("");
     if let Some(Token::Variable { value }) = tokens.last() {
         var_name = value.clone();
@@ -169,8 +209,11 @@ pub fn parse_assign(tokens: &mut Vec<Token>) -> Tree {
     }
 }
 
-/// Parser for statement starting with keyword 'var'
-pub fn parse_var(tokens: &mut Vec<Token>) -> Tree {
+fn parse_var(tokens: &mut Vec<Token>) -> Tree {
+    /*
+    <statement> ::= "var" <var_id> ":" <var_type> ";"
+    <statement> ::= "var" <var_id> ":" <var_type> ":=" <expression> ";"
+     */
     let mut err: Vec<Token> = vec![tokens.pop().unwrap()];
 
     // Get the variable name
@@ -253,8 +296,10 @@ pub fn parse_var(tokens: &mut Vec<Token>) -> Tree {
     }
 }
 
-/// Parser for statement starting with keyword 'for'
-pub fn parse_for(tokens: &mut Vec<Token>) -> Tree {
+fn parse_for(tokens: &mut Vec<Token>) -> Tree {
+    /*
+    <statement> ::= "for" <var_id> "in" <expression> ".." <expression> "do" <statements> <end_for>
+     */
     let mut err = vec![tokens.pop().unwrap()];
 
     // Expect identifier
@@ -302,8 +347,10 @@ pub fn parse_for(tokens: &mut Vec<Token>) -> Tree {
     }
 }
 
-/// Parser for statement starting with keyword 'read'
-pub fn parse_read(tokens: &mut Vec<Token>) -> Tree {
+fn parse_read(tokens: &mut Vec<Token>) -> Tree {
+    /*
+    <statement> ::= "read" <var_id> ";"
+     */
     let mut err = vec![tokens.pop().unwrap()];
 
     // Check that the next token is variable
@@ -327,13 +374,9 @@ pub fn parse_read(tokens: &mut Vec<Token>) -> Tree {
     }
 }
 
-/// Parser for statement starting with keyword 'print'
-pub fn parse_print(tokens: &mut Vec<Token>) -> Tree {
+fn parse_print(tokens: &mut Vec<Token>) -> Tree {
     /*
-    This one is pretty simple since if this fn
-    was called we already know the keyword is print
-    so we just need to pass tokens for expression
-    parser.
+    <statement> ::= "print" <expression> ";"
      */
     tokens.pop(); // pop() print token
     Tree::Print {
@@ -341,16 +384,20 @@ pub fn parse_print(tokens: &mut Vec<Token>) -> Tree {
     }
 }
 
-/// Parser for statement starting with keyword 'assert'
-pub fn parse_assert(tokens: &mut Vec<Token>) -> Tree {
+fn parse_assert(tokens: &mut Vec<Token>) -> Tree {
+    /*
+    <statement> ::= "assert" <expression> ";"
+     */
     tokens.pop();
     Tree::Assert {
         value: Box::from(parse_expr(tokens))
     }
 }
 
-/// Parser for for end statement
-pub fn parse_end(tokens: &mut Vec<Token>) -> Tree {
+fn parse_end(tokens: &mut Vec<Token>) -> Tree {
+    /*
+    <end_for> ::= "end" "for" ";"
+     */
     let mut err = vec![tokens.pop().unwrap()];
 
     // Check that next token is Keyword 'for'
