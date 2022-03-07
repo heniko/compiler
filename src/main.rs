@@ -9,7 +9,7 @@ fn main() {
     //let source=String::from("for i in 1..12 do\nvar j : int := 42;\nend for;");
     //let source = String::from("var hi : int;");
     //let source = String::from("for i in 1..12 do\nfor j in 1..12 do\nvar i : int := 42;\nend for;\nend for;");
-    let source = String::from("i := 42;");
+    let source = String::from("var i:bool:=1+(1+1)*2;");
 
     /*
     Use scanner to find tokens. Check if scanner

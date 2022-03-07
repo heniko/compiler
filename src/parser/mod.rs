@@ -1,10 +1,13 @@
+mod expr_parser;
+
 use crate::scanner::{Token};
-use crate::scanner::Token::StringLiteral;
+use std::collections::VecDeque;
+use expr_parser::Expression;
 
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum VarType {
     Int,
     String,
@@ -12,7 +15,42 @@ pub enum VarType {
     Unknown,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Expr {
+    Mul,
+    Div,
+    Plus,
+    Minus,
+    Not,
+    And,
+    OpenParen,
+    CloseParen,
+    Less,
+    Eq,
+    Group { value: Box<Expr> },
+    Binary { op: Box<Expr>, left: Box<Expr>, right: Box<Expr> },
+    Unary { op: Box<Expr>, value: Box<Expr> },
+    Number { value: i32 },
+    String { value: String },
+    Bool { value: bool },
+    Variable { value: String },
+    Error,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Op {
+    Plus,
+    Minus,
+    Div,
+    Mul,
+    Not,
+    Less,
+    Eq,
+    And,
+    Unknown,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Tree {
     Error { tokens: Vec<Token>, message: String },
     Statements { value: Vec<Tree> },
@@ -21,11 +59,11 @@ pub enum Tree {
     Read { var: String },
     Assert { value: Box<Tree> },
     Var { name: String, var_type: VarType, value: Box<Tree> },
-    Expr { value: Box<Tree> },
     Number { value: i32 },
     Bool { value: bool },
     String { value: String },
     Assign { var: String, value: Box<Tree> },
+    Expr { value: Expr },
     End,
 }
 
@@ -184,21 +222,13 @@ pub fn parse_var(tokens: &mut Vec<Token>) -> Tree {
         match token {
             Token::Assign => {
                 err.push(tokens.pop().unwrap());
-                match var_type {
-                    VarType::Int => { initial = parse_expr(tokens) }
-                    VarType::String => {}
-                    VarType::Bool => {}
-                    VarType::Unknown => {
-                        // Should not be possible!
-                        panic!("Unknown VarType")
-                    }
-                }
+                initial = parse_expr(tokens);
             }
             Token::Semicolon => {
                 match var_type {
-                    VarType::Int => { initial = Tree::Expr { value: Box::from(Tree::Number { value: 0 }) }; }
-                    VarType::String => { initial = Tree::Expr { value: Box::from(Tree::String { value: String::new() }) }; }
-                    VarType::Bool => { initial = Tree::Expr { value: Box::from(Tree::Bool { value: false }) }; }
+                    VarType::Int => { initial = Tree::Expr { value: Expr::Number { value: 0 } }; }
+                    VarType::String => { initial = Tree::Expr { value: Expr::String { value: String::from("") } }; }
+                    VarType::Bool => { initial = Tree::Expr { value: Expr::Bool { value: false } }; }
                     VarType::Unknown => {
                         // Should not be possible!
                         panic!("Unknown VarType")
@@ -338,21 +368,30 @@ pub fn parse_end(tokens: &mut Vec<Token>) -> Tree {
     };
 }
 
-/// Parser for expression
-pub fn parse_expr(tokens: &mut Vec<Token>) -> Tree {
+fn parse_expr(tokens: &mut Vec<Token>) -> Tree {
     /*
-    For now only scan for one number and expect it to be the end.
+    Starting point for parsing expressions.
      */
-    let mut res = if let Some(Token::Number { value }) = tokens.last() {
-        Tree::Expr {
-            value: Box::new(Tree::Number {
-                value: value.clone()
-            })
+    let mut expr = Vec::new();
+    while let Some(token) = tokens.last() {
+        match token {
+            Token::Variable { value } => { expr.push(Expr::Variable { value: value.clone() }); }
+            Token::Number { value } => { expr.push(Expr::Number { value: value.clone() }); }
+            Token::StringLiteral { value } => { expr.push(Expr::String { value: value.clone() }); }
+            Token::Minus => { expr.push(Expr::Minus); }
+            Token::Plus => { expr.push(Expr::Plus); }
+            Token::Divide => { expr.push(Expr::Div); }
+            Token::Multiply => { expr.push(Expr::Mul); }
+            Token::Not => { expr.push(Expr::Not); }
+            Token::LessThan => { expr.push(Expr::Less); }
+            Token::Equals => { expr.push(Expr::Eq); }
+            Token::And => { expr.push(Expr::And); }
+            Token::OpenParen => { expr.push(Expr::OpenParen); }
+            Token::CloseParen => { expr.push(Expr::CloseParen); }
+            _ => { break; }
         }
-    } else {
-        parse_error(tokens, String::from("Error while parsing expression."), Vec::new())
+        tokens.pop();
     };
 
-    tokens.pop();
-    res
+    Tree::Expr { value: Expression::from(&expr).expression() }
 }
