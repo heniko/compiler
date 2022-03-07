@@ -13,7 +13,7 @@ impl Cursor {
 
     fn is_end(&mut self) -> bool {
         match self.tokens.get(self.index) {
-            Some(t) => { false }
+            Some(_t) => { false }
             None => { true }
         }
     }
@@ -175,8 +175,8 @@ impl Expression {
         <unary> ::= <primary>
          */
         if self.cursor.matches(vec![Expr::Not, Expr::Minus]) {
-            let mut op = self.cursor.previous();
-            let mut r = self.unary();
+            let op = self.cursor.previous();
+            let r = self.unary();
             return Expr::Unary { op: Box::from(op), value: Box::from(r) };
         }
         self.primary()
@@ -189,26 +189,26 @@ impl Expression {
         let ex = self.cursor.peek();
         let e = ex.clone();
         return match ex {
-            Expr::Number { value } => {
+            Expr::Number { value: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
-            Expr::Variable { value } => {
+            Expr::Variable { value: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
-            Expr::String { value } => {
+            Expr::String { value: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
             Expr::OpenParen => {
                 self.cursor.advance();
-                let mut expr = self.expression();
-                if self.cursor.matches(vec![Expr::CloseParen]) {
-                    return Expr::Group { value: Box::from(expr) };
+                let expr = self.expression();
+                return if self.cursor.matches(vec![Expr::CloseParen]) {
+                    Expr::Group { value: Box::from(expr) }
                 } else {
-                    return Expr::Error;
-                }
+                    Expr::Error
+                };
             }
             _ => {
                 Expr::Error

@@ -21,7 +21,7 @@ fn main() {
     let mut tokens = scanner.tokens;
     let mut scanner_errors = 0;
 
-    dbg!(scanner.positions);
+    //dbg!(scanner.positions);
 
     for token in tokens.iter() {
         match token {
@@ -43,10 +43,10 @@ fn main() {
     parser returned errors and if so print error
     messages and exit program early.
      */
-    dbg!(tokens.clone());
+    //dbg!(tokens.clone());
 
     tokens.reverse();
     let tree = parser::parse(&mut tokens);
 
-    dbg!(tree);
+    //dbg!(tree);
 }

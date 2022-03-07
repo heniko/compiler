@@ -12,7 +12,6 @@ pub enum VarType {
     Int,
     String,
     Bool,
-    Unknown,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -38,19 +37,6 @@ pub enum Expr {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Op {
-    Plus,
-    Minus,
-    Div,
-    Mul,
-    Not,
-    Less,
-    Eq,
-    And,
-    Unknown,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Tree {
     Error { tokens: Vec<Token>, message: String },
     Statements { value: Vec<Tree> },
@@ -59,9 +45,6 @@ pub enum Tree {
     Read { var: String },
     Assert { value: Box<Tree> },
     Var { name: String, var_type: VarType, value: Box<Tree> },
-    Number { value: i32 },
-    Bool { value: bool },
-    String { value: String },
     Assign { var: String, value: Box<Tree> },
     Expr { value: Expr },
     End,
@@ -120,7 +103,7 @@ pub fn parse(tokens: &mut Vec<Token>) -> Tree {
 
             while let Some(token) = tokens.last() {
                 stmts.push(match token {
-                    Token::Variable { value } => { parse_assign(tokens) }
+                    Token::Variable { value: _ } => { parse_assign(tokens) }
                     Token::Var => { parse_var(tokens) }
                     Token::For => { parse_for(tokens) }
                     Token::Read => { parse_read(tokens) }
@@ -145,7 +128,7 @@ fn parse_loop_statements(tokens: &mut Vec<Token>) -> Box<Tree> {
 
     while let Some(token) = tokens.last() {
         stmts.push(match token {
-            Token::Variable { value } => { parse_assign(tokens) }
+            Token::Variable { value: _ } => { parse_assign(tokens) }
             Token::Var => { parse_var(tokens) }
             Token::For => { parse_for(tokens) }
             Token::Read => { parse_read(tokens) }
@@ -195,7 +178,7 @@ fn parse_assign(tokens: &mut Vec<Token>) -> Tree {
     if let Some(Token::Variable { value }) = tokens.last() {
         var_name = value.clone();
     }
-    let mut err = vec![tokens.pop().unwrap()];
+    let err = vec![tokens.pop().unwrap()];
 
     if let Some(Token::Assign) = tokens.last() {
         tokens.pop();
@@ -217,7 +200,7 @@ fn parse_var(tokens: &mut Vec<Token>) -> Tree {
     let mut err: Vec<Token> = vec![tokens.pop().unwrap()];
 
     // Get the variable name
-    let mut var_name = String::new();
+    let var_name: String;
 
     if let Some(Token::Variable { value }) = tokens.last() {
         var_name = value.clone();
@@ -234,7 +217,7 @@ fn parse_var(tokens: &mut Vec<Token>) -> Tree {
     }
 
     // Check that next token is Keyword of one of the types int, string or bool
-    let mut var_type = VarType::Unknown;
+    let var_type: VarType;
 
     if let Some(token) = tokens.last() {
         match token {
@@ -259,7 +242,7 @@ fn parse_var(tokens: &mut Vec<Token>) -> Tree {
     string -> ""
     bool   -> false
      */
-    let mut initial = Tree::End;
+    let initial: Tree;
 
     if let Some(token) = tokens.last() {
         match token {
@@ -272,10 +255,6 @@ fn parse_var(tokens: &mut Vec<Token>) -> Tree {
                     VarType::Int => { initial = Tree::Expr { value: Expr::Number { value: 0 } }; }
                     VarType::String => { initial = Tree::Expr { value: Expr::String { value: String::from("") } }; }
                     VarType::Bool => { initial = Tree::Expr { value: Expr::Bool { value: false } }; }
-                    VarType::Unknown => {
-                        // Should not be possible!
-                        panic!("Unknown VarType")
-                    }
                 }
             }
             _ => {
@@ -303,7 +282,7 @@ fn parse_for(tokens: &mut Vec<Token>) -> Tree {
     let mut err = vec![tokens.pop().unwrap()];
 
     // Expect identifier
-    let mut var_name = String::new();
+    let var_name: String;
 
     if let Some(Token::Variable { value }) = tokens.last() {
         var_name = value.clone();
@@ -320,7 +299,7 @@ fn parse_for(tokens: &mut Vec<Token>) -> Tree {
     }
 
     // Expect expression
-    let mut start = Box::from(parse_expr(tokens));
+    let start = Box::from(parse_expr(tokens));
 
     // Expect dots
     if let Some(Token::Dots) = tokens.last() {
@@ -330,7 +309,7 @@ fn parse_for(tokens: &mut Vec<Token>) -> Tree {
     }
 
     // Expect Expression
-    let mut end = Box::from(parse_expr(tokens));
+    let end = Box::from(parse_expr(tokens));
 
     // Expect keyword 'do'
     if let Some(Token::Do) = tokens.last() {
@@ -354,7 +333,7 @@ fn parse_read(tokens: &mut Vec<Token>) -> Tree {
     let mut err = vec![tokens.pop().unwrap()];
 
     // Check that the next token is variable
-    let mut var_name = String::new();
+    let var_name: String;
 
     if let Some(Token::Variable { value }) = tokens.last() {
         var_name = value.clone();
