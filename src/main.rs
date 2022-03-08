@@ -2,13 +2,13 @@ mod scanner;
 mod parser;
 
 use scanner::{Scanner, Token};
-use parser::{Tree};
+use parser::{Tree, Parser};
 
 fn main() {
     //let source = String::from("var hi : int := 42;");
     //let source=String::from("for i in 1..12 do\nvar j : int := 42;\nend for;");
-    //let source = String::from("var hi : int;");
-    let source = String::from("for i in 1..12 do\nfor j in 1..12 do\nvar i : int := 42;\nend for;\nend for;");
+    let source = String::from("var hi wrong : int;");
+    //let source = String::from("for i in 1..12 do\nfor in 1..12 do\nvar i : int := 42;\nend for;\nend for;");
     //let source = String::from("var i:bool:=1+(1+1)*2;");
 
     /*
@@ -19,6 +19,7 @@ fn main() {
     let mut scanner = Scanner::from(&source);
     scanner.scan();
     let mut tokens = scanner.tokens;
+    let mut positions = scanner.positions;
     let mut scanner_errors = 0;
 
     //dbg!(scanner.positions);
@@ -45,8 +46,8 @@ fn main() {
      */
     //dbg!(tokens.clone());
 
-    tokens.reverse();
-    let tree = parser::parse(&mut tokens);
+    let parser = Parser::from(&tokens, &positions);
 
-    //dbg!(tree);
+    dbg!(parser.errors);
+    dbg!(parser.ast);
 }
