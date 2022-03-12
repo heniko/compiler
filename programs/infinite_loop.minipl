@@ -1,0 +1,5 @@
+var i:int;
+for i in 1..2 do
+  i:=i-1;
+  print ""+i+"\n";
+end for;

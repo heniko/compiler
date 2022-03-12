@@ -144,7 +144,7 @@ impl Parser {
             value: {
                 let mut stmts: Vec<Tree> = Vec::new();
 
-                while let (Some(token), Some(position)) = self.peek() {
+                while let (Some(token), Some(_position)) = self.peek() {
                     stmts.push(match token {
                         Token::Variable { value: _ } => { self.parse_assign() }
                         Token::Var => { self.parse_var() }
@@ -175,7 +175,7 @@ impl Parser {
          */
         let mut stmts: Vec<Tree> = Vec::new();
 
-        while let (Some(token), Some(position)) = self.peek() {
+        while let (Some(token), Some(_position)) = self.peek() {
             stmts.push(match token {
                 Token::Variable { value: _ } => { self.parse_assign() }
                 Token::Var => { self.parse_var() }
@@ -218,7 +218,7 @@ impl Parser {
     fn parse_error(&mut self, message: String) -> ParserError {
         let error;
 
-        if let (Some(token), Some(position)) = self.peek() {
+        if let (Some(_token), Some(position)) = self.peek() {
             error = ParserError {
                 position: Some(position.clone()),
                 message,
@@ -230,7 +230,7 @@ impl Parser {
             }
         }
 
-        while let (Some(token), Some(position)) = self.peek() {
+        while let (Some(token), Some(_position)) = self.peek() {
             if token == &Token::Semicolon {
                 break;
             }
@@ -245,7 +245,7 @@ impl Parser {
         <statement> ::= <var_id> ":=" <expression> ";"
          */
         let var_name;
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             var_name = value.clone();
             self.pop();
         } else {
@@ -257,7 +257,7 @@ impl Parser {
             return Tree::Error;
         }
 
-        if let (Some(Token::Assign), Some(position)) = self.peek() {
+        if let (Some(Token::Assign), Some(_position)) = self.peek() {
             self.pop();
         } else {
             let err = self.parse_error(
@@ -283,7 +283,7 @@ impl Parser {
         // Get the variable name
         let var_name: String;
 
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             var_name = value.clone();
             self.pop();
         } else {
@@ -295,7 +295,7 @@ impl Parser {
         }
 
         // Check that next token is Colon
-        if let (Some(Token::Colon), Some(position)) = self.peek() {
+        if let (Some(Token::Colon), Some(_position)) = self.peek() {
             self.pop();
         } else {
             let err = self.parse_error(
@@ -308,7 +308,7 @@ impl Parser {
         // Check that next token is Keyword of one of the types int, string or bool
         let var_type: VarType;
 
-        if let (Some(token), Some(position)) = self.peek() {
+        if let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::Int => { var_type = VarType::Int; }
                 Token::String => { var_type = VarType::String; }
@@ -343,7 +343,7 @@ impl Parser {
          */
         let initial: Tree;
 
-        if let (Some(token), Some(position)) = self.peek() {
+        if let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::Assign => {
                     self.pop();
@@ -387,7 +387,7 @@ impl Parser {
 
         // Expect identifier
         let var_name: String;
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             var_name = value.clone();
             self.pop();
         } else {
@@ -399,7 +399,7 @@ impl Parser {
         }
 
         // Expect keyword 'in'
-        if let (Some(Token::In), Some(position)) = self.peek() {
+        if let (Some(Token::In), Some(_position)) = self.peek() {
             self.pop();
         } else {
             let err = self.parse_error(
@@ -413,7 +413,7 @@ impl Parser {
         let start = Box::from(self.parse_expr());
 
         // Expect dots
-        if let (Some(Token::Dots), Some(position)) = self.peek() {
+        if let (Some(Token::Dots), Some(_position)) = self.peek() {
             self.pop();
         } else {
             let err = self.parse_error(
@@ -427,7 +427,7 @@ impl Parser {
         let end = Box::from(self.parse_expr());
 
         // Expect keyword 'do'
-        if let (Some(Token::Do), Some(position)) = self.peek() {
+        if let (Some(Token::Do), Some(_position)) = self.peek() {
             self.pop();
         } else {
             let err = self.parse_error(
@@ -454,7 +454,7 @@ impl Parser {
         // Check that the next token is variable
         let var_name: String;
 
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             var_name = value.clone();
             self.pop();
         } else {
@@ -465,7 +465,7 @@ impl Parser {
             return Tree::Error;
         }
 
-        if let (Some(Token::Semicolon), Some(position)) = self.peek() {
+        if let (Some(Token::Semicolon), Some(_position)) = self.peek() {
             /* Do nothing as the statement is complete */
         } else {
             let err = self.parse_error(
@@ -507,7 +507,7 @@ impl Parser {
         self.pop(); // pop 'end'
 
         // Check that next token is Keyword 'for'
-        if let (Some(Token::For), Some(position)) = self.peek() {
+        if let (Some(Token::For), Some(_position)) = self.peek() {
             self.pop();
         } else {
             let err = self.parse_error(
@@ -518,7 +518,7 @@ impl Parser {
         }
 
         // Check that next token is Semicolon
-        return if let (Some(Token::Semicolon), Some(position)) = self.peek() {
+        return if let (Some(Token::Semicolon), Some(_position)) = self.peek() {
             Tree::End
         } else {
             let err = self.parse_error(
@@ -534,7 +534,7 @@ impl Parser {
         Starting point for parsing expressions.
          */
         let mut expr = Vec::new();
-        while let (Some(token), Some(position)) = self.peek() {
+        while let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::Variable { value } => { expr.push(Expr::Variable { value: value.clone() }); }
                 Token::Number { value } => { expr.push(Expr::Number { value: value.clone() }); }

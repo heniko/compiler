@@ -1,7 +1,6 @@
 use std::borrow::Borrow;
 use crate::parser::{Expr, Tree, VarType};
 use std::collections::{HashMap, VecDeque};
-use std::ops::Deref;
 use crate::io::{IO};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -297,10 +296,10 @@ impl Interpreter {
                                         }
                                     }
                                 }
-                            } else {
+                            } else if start_val_int > end_val_int {
                                 let mut iter = start_val_int;
 
-                                while iter <= end_val_int {
+                                while iter >= end_val_int {
                                     self.statements(statements.borrow());
                                     match self.get_var(var.clone()) {
                                         Variable::Number { value } => {
@@ -312,27 +311,33 @@ impl Interpreter {
                                         }
                                     }
                                 }
-                            };
+                            } else {
+                                /*
+                                start_val_int == end_val_int so no loops.
+                                This needs to be it's separate branch since
+                                in positive loop we match <= and in negative >=.
+                                 */
+                            }
                         }
                         Tree::Var { value, var_type, name } => {
                             let variable = self.evaluate(value.borrow());
                             // Check that var_type matches variable type
                             match variable.clone() {
-                                Variable::Number { value } => {
+                                Variable::Number { value:_ } => {
                                     if var_type == &VarType::Int {
                                         self.init_var(name.clone(), variable);
                                     } else {
                                         panic!("Variable type and expression evaluation didn't match!");
                                     }
                                 }
-                                Variable::Bool { value } => {
+                                Variable::Bool { value:_ } => {
                                     if var_type == &VarType::Bool {
                                         self.init_var(name.clone(), variable);
                                     } else {
                                         panic!("Variable type and expression evaluation didn't match!");
                                     }
                                 }
-                                Variable::String { value } => {
+                                Variable::String { value:_ } => {
                                     if var_type == &VarType::String {
                                         self.init_var(name.clone(), variable);
                                     } else {
@@ -377,13 +382,13 @@ impl Interpreter {
                             let t = (e.clone(), v);
 
                             match t {
-                                (Variable::Bool { value: v1 }, Variable::Bool { value: v2 }) => {
+                                (Variable::Bool { value: _v1 }, Variable::Bool { value: _v2 }) => {
                                     self.assign_var(var.clone(), e);
                                 }
-                                (Variable::String { value: v1 }, Variable::String { value: v2 }) => {
+                                (Variable::String { value: _v1 }, Variable::String { value: _v2 }) => {
                                     self.assign_var(var.clone(), e);
                                 }
-                                (Variable::Number { value: v1 }, Variable::Number { value: v2 }) => {
+                                (Variable::Number { value: _v1 }, Variable::Number { value: _v2 }) => {
                                     self.assign_var(var.clone(), e);
                                 }
                                 _ => {
@@ -396,10 +401,10 @@ impl Interpreter {
                             let input = self.io.read();
 
                             match v {
-                                Variable::String { value } => {
+                                Variable::String { value: _ } => {
                                     self.assign_var(var.clone(), Variable::String { value: input });
                                 }
-                                Variable::Number { value } => {
+                                Variable::Number { value: _ } => {
                                     self.assign_var(var.clone(), Variable::Number { value: input.parse().unwrap() });
                                 }
                                 _ => { panic!("Unable to assign read variable."); }
