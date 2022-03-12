@@ -260,7 +260,10 @@ impl Parser {
         if let (Some(Token::Assign), Some(position)) = self.peek() {
             self.pop();
         } else {
-            self.parse_error(String::from("Expected assign."));
+            let err = self.parse_error(
+                String::from("Expected assign.")
+            );
+            self.errors.push(err);
             return Tree::Error;
         }
 
