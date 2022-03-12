@@ -247,6 +247,7 @@ impl Parser {
         let var_name;
         if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
             var_name = value.clone();
+            self.pop();
         } else {
             /*
             This should never happen since this function

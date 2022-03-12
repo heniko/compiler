@@ -3,8 +3,8 @@ mod tests;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TokenPosition {
-    line: usize,
-    char: usize,
+    pub line: usize,
+    pub char: usize,
 }
 
 /// Enum contains all possible tokens and those that can have unique values also have value field.

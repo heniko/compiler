@@ -1,0 +1,9 @@
+var x:int;
+var y:int;
+for x in 1..10 do
+  for y in 1..10 do
+    print y * x;
+    print "\t";
+  end for;
+  print "\n";
+end for;

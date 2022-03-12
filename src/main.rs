@@ -1,15 +1,17 @@
-mod scanner;
+mod interpreter;
+mod io;
 mod parser;
+mod scanner;
 
+use crate::io::{read_file, UserIO, IO};
+use interpreter::Interpreter;
+use parser::{Parser, Tree};
 use scanner::{Scanner, Token};
-use parser::{Tree, Parser};
 
 fn main() {
-    //let source = String::from("var hi : int := 42;");
-    //let source=String::from("for i in 1..12 do\nvar j : int := 42;\nend for;");
-    let source = String::from("var hi wrong : int;");
-    //let source = String::from("for i in 1..12 do\nfor in 1..12 do\nvar i : int := 42;\nend for;\nend for;");
-    //let source = String::from("var i:bool:=1+(1+1)*2;");
+    let mut io = UserIO::from();
+    let mut path = io.read();
+    let source = read_file(path.as_str());
 
     /*
     Use scanner to find tokens. Check if scanner
@@ -18,11 +20,10 @@ fn main() {
      */
     let mut scanner = Scanner::from(&source);
     scanner.scan();
+    dbg!(scanner.tokens.clone());
     let mut tokens = scanner.tokens;
     let mut positions = scanner.positions;
     let mut scanner_errors = 0;
-
-    //dbg!(scanner.positions);
 
     for token in tokens.iter() {
         match token {
@@ -35,7 +36,10 @@ fn main() {
     }
 
     if scanner_errors > 0 {
-        println!("{} unrecognized token(s) found during scanning phase!", scanner_errors);
+        println!(
+            "{} unrecognized token(s) found during scanning phase!",
+            scanner_errors
+        );
         return;
     }
 
@@ -44,10 +48,25 @@ fn main() {
     parser returned errors and if so print error
     messages and exit program early.
      */
-    //dbg!(tokens.clone());
-
     let parser = Parser::from(&tokens, &positions);
 
-    dbg!(parser.errors);
-    dbg!(parser.ast);
+    dbg!(parser.ast.clone());
+
+    if !parser.errors.is_empty() {
+        for e in parser.errors.iter() {
+            match &e.position {
+                Some(p) => {
+                    println!("Error in line {} char {}: {}", p.line, p.char, e.message);
+                }
+                None => {
+                    println!("Error in file: {}", e.message);
+                }
+            }
+        }
+        return;
+    }
+
+    let mut interpreter = Interpreter::from(parser.ast, Box::from(UserIO::from()));
+
+    interpreter.run();
 }
