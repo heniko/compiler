@@ -1,0 +1,2 @@
+var i:bool:=2&3;
+print i;

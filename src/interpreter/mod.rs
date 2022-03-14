@@ -205,6 +205,9 @@ impl Interpreter {
             Expr::Number { value } => {
                 return Variable::Number { value: value.clone() };
             }
+            Expr::Bool { value } => {
+                return Variable::Bool { value: value.clone() };
+            }
             Expr::String { value } => {
                 Variable::String { value: value.clone() }
             }
@@ -323,21 +326,21 @@ impl Interpreter {
                             let variable = self.evaluate(value.borrow());
                             // Check that var_type matches variable type
                             match variable.clone() {
-                                Variable::Number { value:_ } => {
+                                Variable::Number { value: _ } => {
                                     if var_type == &VarType::Int {
                                         self.init_var(name.clone(), variable);
                                     } else {
                                         panic!("Variable type and expression evaluation didn't match!");
                                     }
                                 }
-                                Variable::Bool { value:_ } => {
+                                Variable::Bool { value: _ } => {
                                     if var_type == &VarType::Bool {
                                         self.init_var(name.clone(), variable);
                                     } else {
                                         panic!("Variable type and expression evaluation didn't match!");
                                     }
                                 }
-                                Variable::String { value:_ } => {
+                                Variable::String { value: _ } => {
                                     if var_type == &VarType::String {
                                         self.init_var(name.clone(), variable);
                                     } else {
