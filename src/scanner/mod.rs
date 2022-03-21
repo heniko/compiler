@@ -10,37 +10,101 @@ pub struct TokenPosition {
 /// Enum contains all possible tokens and those that can have unique values also have value field.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Token {
-    StringLiteral { value: String },
     Variable { value: String },
-    Number { value: i32 },
+    StringLiteral { value: String },
+    IntegerLiteral { value: i32 },
+    RealLiteral { value: f32 },
     Unknown { value: String },
-    Assign,
-    Semicolon,
-    Colon,
-    OpenParen,
-    CloseParen,
-    Dots,
-    Equals,
+    /*
+    Special symbols:
+
+    "+" | "-" | "*" | "%" | "=" | "<>" | "<" | ">" | "<=" | ">=" |
+    "(" | ")" | "[" | "]" | ":=" | "." | "," | ";" | ":"
+     */
+    // +
     Plus,
+    // -
     Minus,
+    // *
     Multiply,
+    // /
     Divide,
+    // %
+    Modulo,
+    // =
+    Eq,
+    // <>
+    Inequality,
+    // <
+    Le,
+    // >
+    Ge,
+    // <=
+    Leq,
+    // >=
+    Geq,
+    // (
+    OpenParen,
+    // )
+    CloseParen,
+    // [
+    OpenBracket,
+    // ]
+    CloseBracket,
+    // :=
+    Assign,
+    // .
+    Dot,
+    // ,
+    Comma,
+    // ;
+    Semicolon,
+    // :
+    Colon,
+    // //, /* */
+    Comment,
+    // " " \n
+    Whitespace,
+    /*
+    Keywords:
+
+    "or" | "and" | "not" | "if" | "then" | "else" | "of" | "while" |
+    "do" | "begin" | "end" | "var" | "array" | "procedure" |
+    "function" | "program" | "assert" | "return"
+    */
+    Or,
     And,
     Not,
-    LessThan,
-    Comment,
-    Whitespace,
-    Var,
-    For,
-    End,
-    In,
+    If,
+    Then,
+    Else,
+    Of,
+    While,
     Do,
-    Read,
-    Print,
-    Int,
-    String,
-    Bool,
+    Begin,
+    End,
+    Var,
+    Array,
+    Procedure,
+    Function,
+    Program,
     Assert,
+    Return,
+    /*
+    Predefined id:
+
+    "Boolean" | "false" | "integer" | "read" | "real" | "size" |
+    "string" | "true" | "writeln"
+    */
+    Boolean,
+    False,
+    Integer,
+    Read,
+    Real,
+    Size,
+    String,
+    True,
+    Writeln,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -158,15 +222,17 @@ impl Scanner {
             let add = match c {
                 '(' => { Token::OpenParen }
                 ')' => { Token::CloseParen }
-                '=' => { Token::Equals }
+                '=' => { Token::Eq }
                 '+' => { Token::Plus }
                 '-' => { Token::Minus }
                 '*' => { Token::Multiply }
+                '%' => { Token::Modulo }
                 '/' => { self.scan_forward_slash() }
-                '&' => { Token::And }
-                '!' => { Token::Not }
-                '<' => { Token::LessThan }
+                '<' => { self.scan_le() }
+                '>' => { self.scan_ge() }
+                '.' => { Token::Dot }
                 ';' => { Token::Semicolon }
+                '{' => { self.scan_multiline_comment() }
                 ':' => { self.scan_colon() }
                 'A'..='Z' | 'a'..='z' => { self.scan_variable() } // A-Z|a-z
                 '0'..='9' => { self.scan_number() } // 0-9
@@ -284,27 +350,6 @@ impl Scanner {
         };
     }
 
-    fn scan_dot(&mut self) -> Token {
-        /*
-        Since '..' is the only token that starts with '.' this needs to
-        check that next character exists and it is also '.'.
-         */
-        return if let Some(ch) = self.cursor.next() {
-            if ch == '.' {
-                self.cursor.inc();
-                Token::Dots
-            } else {
-                Token::Unknown {
-                    value: String::from("Unrecognized token: '.'")
-                }
-            }
-        } else {
-            Token::Unknown {
-                value: String::from("Unexpected end of file after character: '.'")
-            }
-        };
-    }
-
     fn scan_forward_slash(&mut self) -> Token {
         /*
         Make sure the next character is not EOF and if so return
@@ -317,8 +362,6 @@ impl Scanner {
             /*
             Three possible cases for next():
             -'/' to start a line comment
-            -'*' to start a multiline comment that needs to be ended
-             correctly
             -Any other character which means it is a Divide token
              */
             return match c {
@@ -334,42 +377,68 @@ impl Scanner {
                     }
                     Token::Comment
                 }
-                '*' => {
-                    /*
-                    Skip until end of comment is found and if EOF is found
-                    before end of comment return Unknown.
-                     */
-                    let mut err_val = String::from("/*");
-                    self.cursor.inc(); // Skip comment starting '*'
-                    let mut ast_found = false;
-                    while let Some(ch) = self.cursor.next() {
-                        if ch == '*' {
-                            err_val.push(ch);
-                            ast_found = true;
-                        } else if ch == '/' && ast_found {
-                            self.cursor.inc(); // After this point the cursor should point to comment ending '/'
-                            break;
-                        } else {
-                            err_val.push(ch);
-                            ast_found = false;
-                        }
-                        self.cursor.inc();
-                    }
-
-                    if let None = self.cursor.peek() {
-                        /*
-                        Comment ending character was not found before EOF.
-                         */
-                        return Token::Unknown { value: String::from(format!("Unexpected end of file before ending of multiline comment: {}", err_val)) };
-                    }
-
-                    Token::Comment
-                }
                 _ => { Token::Divide }
             };
         } else {
             // Since peek() is '/' and next() None we must return Divide token.
             Token::Divide
+        };
+    }
+
+    fn scan_multiline_comment(&mut self) -> Token {
+        // consume {
+        let mut s = String::from('{');
+        self.cursor.inc();
+
+        if let Some('*') = self.cursor.peek() {
+            // Consume *
+            s.push('*');
+            self.cursor.inc();
+            while let Some(c) = self.cursor.peek() {
+                match c {
+                    '*' => {
+                        /*
+                        Either ends the comment ("*}") or doesn't ("*<anything else>")
+                         */
+                        if let Some('}') = self.cursor.next() {
+                            self.cursor.inc();
+                        } else {
+                            s.push(c.clone());
+                        }
+                    }
+                    _ => {
+                        s.push(c.clone());
+                    }
+                }
+            }
+        } else {
+            return Token::Unknown { value: s };
+        }
+
+        return Token::Unknown { value: s };
+        todo!();
+    }
+
+    fn scan_le(&mut self) -> Token {
+        return if let Some(c) = self.cursor.next() {
+            match c {
+                '>' => { Token::Inequality }
+                '=' => { Token::Leq }
+                _ => { Token::Le }
+            }
+        } else {
+            Token::Le
+        };
+    }
+
+    fn scan_ge(&mut self) -> Token {
+        return if let Some(c) = self.cursor.next() {
+            match c {
+                '=' => { Token::Geq }
+                _ => { Token::Ge }
+            }
+        } else {
+            Token::Ge
         };
     }
 
@@ -446,7 +515,7 @@ impl Scanner {
             variable names with numeric values (For example 'num1') this
             only needs to check for each character that it is alphanumeric.
              */
-            if c.is_alphanumeric() {
+            if c.is_alphanumeric() | c == '_' {
                 s.push(c);
                 self.cursor.inc();
             } else {
@@ -454,19 +523,53 @@ impl Scanner {
             }
         }
 
+        // Case non-sensitivity
+        s = s.to_lowercase();
+
         return match s.as_str() {
-            "var" => { Token::Var }
-            "for" => { Token::For }
-            "end" => { Token::End }
-            "in" => { Token::In }
+            /*
+            Keywords:
+
+            "or" | "and" | "not" | "if" | "then" | "else" | "of" | "while" |
+            "do" | "begin" | "end" | "var" | "array" | "procedure" |
+            "function" | "program" | "assert" | "return"
+             */
+            "or" => { Token::Or }
+            "and" => { Token::And }
+            "not" => { Token::Not }
+            "if" => { Token::If }
+            "then" => { Token::Then }
+            "else" => { Token::Else }
+            "of" => { Token::Of }
+            "while" => { Token::While }
             "do" => { Token::Do }
-            "read" => { Token::Read }
-            "print" => { Token::Print }
-            "int" => { Token::Int }
-            "string" => { Token::String }
-            "bool" => { Token::Bool }
+            "begin" => { Token::Begin }
+            "end" => { Token::End }
+            "var" => { Token::Var }
+            "array" => { Token::Array }
+            "procedure" => { Token::Procedure }
+            "function" => { Token::Function }
+            "program" => { Token::Program }
             "assert" => { Token::Assert }
-            _ => { Token::Variable { value: s } }
+            "return" => { Token::Return }
+            /*
+            Predefined id:
+
+            "Boolean" | "false" | "integer" | "read" | "real" | "size" |
+            "string" | "true" | "writeln"
+             */
+            "boolean" => { Token::Boolean }
+            "false" => { Token::False }
+            "integer" => { Token::Integer }
+            "read" => { Token::Read }
+            "real" => { Token::Real }
+            "size" => { Token::Size }
+            "String" => { Token::String }
+            "true" => { Token::True }
+            "writeln" => { Token::Writeln }
+            _ => {
+                Token::Variable { value: s }
+            }
         };
     }
 }
