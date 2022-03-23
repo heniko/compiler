@@ -2,7 +2,8 @@ mod expr_parser;
 
 use crate::scanner::{Token, TokenPosition};
 use std::collections::VecDeque;
-use expr_parser::Expression;
+use std::string::ParseError;
+//use expr_parser::Expression;
 
 #[cfg(test)]
 mod tests;
@@ -12,42 +13,75 @@ pub enum VarType {
     Int,
     String,
     Bool,
+    Real,
+    Error,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Expr {
-    Mul,
-    Div,
+#[derive(Debug, PartialEq, Clone)]
+pub enum Statement {
+    Error,
+    Assignment { id: String, value: Expression },
+    Call { id: String, arguments: Vec<Expression> },
+    Return { value: Expression },
+    Read { ids: Vec<String> },
+    Write { arguments: Vec<Expression> },
+    Assert { value: Expression },
+    Block { statements: Vec<Statement> },
+    If { value: Expression, statement: Box<Statement> },
+    IfElse { value: Expression, statement: Box<Statement> },
+    While { value: Expression, statement: Box<Statement> },
+    VarDeclaration { ids: Vec<String>, var_type: VarType },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Expression {
+    Error,
+    None,
+    Eq,
+    Le,
+    Ge,
+    Leq,
+    Geq,
+    Inequality,
     Plus,
     Minus,
+    Or,
     Not,
+    Multiply,
+    Divide,
+    Modulo,
     And,
+    StringLiteral { value: String },
+    IntegerLiteral { value: i32 },
+    RealLiteral { value: f32 },
+    True,
+    False,
+    Function { id: String, parameters: Vec<Parameter> },
+    Variable { id: String },
     OpenParen,
     CloseParen,
-    Less,
-    Eq,
-    Group { value: Box<Expr> },
-    Binary { op: Box<Expr>, left: Box<Expr>, right: Box<Expr> },
-    Unary { op: Box<Expr>, value: Box<Expr> },
-    Number { value: i32 },
-    String { value: String },
-    Bool { value: bool },
-    Variable { value: String },
-    Error,
+    Unary { op: Box<Expression>, value: Box<Expression> },
+    Binary { op: Box<Expression>, left: Box<Expression>, right: Box<Expression> },
+    Group { value: Box<Expression> },
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Tree {
-    Error,
-    Statements { value: Vec<Tree> },
-    For { var: String, start: Box<Tree>, end: Box<Tree>, statements: Box<Tree> },
-    Print { value: Box<Tree> },
-    Read { var: String },
-    Assert { value: Box<Tree> },
-    Var { name: String, var_type: VarType, value: Box<Tree> },
-    Assign { var: String, value: Box<Tree> },
-    Expr { value: Expr },
+pub enum Parameter {
+    Parameter { id: String, par_type: VarType },
     End,
+    Error,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum AST {
+    Error,
+    Program { id: String, functions: Vec<AST>, procedures: Vec<AST>, main: Statement },
+    Procedure { parameters: Vec<AST>, block: Statement },
+    Function { parameters: Vec<AST>, block: Box<AST>, res_type: VarType },
+    Parameters,
+    Parameter,
+    SimpleType,
+    ArrayType,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -65,12 +99,12 @@ impl ParserError {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Parser {
     tokens: VecDeque<Token>,
     positions: VecDeque<TokenPosition>,
     pub errors: Vec<ParserError>,
-    pub ast: Tree,
+    pub ast: AST,
 }
 
 impl Parser {
@@ -79,9 +113,9 @@ impl Parser {
             tokens: VecDeque::from(tokens.clone()),
             positions: VecDeque::from(positions.clone()),
             errors: Vec::new(),
-            ast: Tree::End, // Placeholder
+            ast: AST::Error, // Placeholder
         };
-        parser.ast = parser.parse();
+        parser.ast = parser.program();
 
         parser
     }
@@ -94,128 +128,16 @@ impl Parser {
         (self.tokens.front(), self.positions.front())
     }
 
-    fn parse(&mut self) -> Tree {
+    fn parse_error(&mut self, message: String) {
         /*
-        <statements> ::= <statement><statements> // Implemented as vector
-        <statements> ::= <statement>
-
-        <statement> ::= "var" <var_id> ":" <var_type> ";"
-        <statement> ::= "var" <var_id> ":" <var_type> ":=" <expression> ";"
-        <statement> ::= "for" <var_id> "in" <expression> ".." <expression> "do" <statements> <end_for>
-        <statement> ::= "read" <var_id> ";"
-        <statement> ::= "print" <expression> ";"
-        <statement> ::= "assert" <expression> ";"
-        <statement> ::= <var_id> ":=" <expression> ";"
-
-        <var_type> ::= "int" | "bool" | "string"
-
-        <end_for> ::= "end" "for" ";"
-
-        <var_id> ::= <id>
-
-        <expression> ::= <and>
-
-        <and> ::= <and> "&" <equality>
-        <and> ::= <equality> "&" <equality>
-        <and> ::= <equality>
-
-        <equality> ::= <equality> "=" <comparison>
-        <equality> ::= <comparison> "=" <comparison>
-        <equality> ::= <comparison>
-
-        <comparison> ::= <comparison> ">" <term>
-        <comparison> ::= <term> ">" <term>
-        <comparison> ::= <term>
-
-        <term> ::= <term> "+" | "-"
-        <term> ::= <factor> "+" | "-" <factor>
-        <term> ::= <factor>
-
-        <factor> ::= <factor> "*" | "/" <unary>
-        <factor> ::= <unary> "*" | "/" <unary>
-        <factor> ::= <unary>
-
-        <unary> ::= "" | "-" | "!" <primary>
-        <unary> ::= <primary>
-
-        <primary> ::= <string> | <number> | <variable> | "(" <expression> ")"
+        Create error that contains the position of the
+        error (or not if it's not easily available)
+        and message of what went wrong. Find the point
+        where it is expected to be easy to continue parsing
+        or in other words next ';' since at that point
+        we are pretty confident there is something we can
+        try parsing.
          */
-        Tree::Statements {
-            value: {
-                let mut stmts: Vec<Tree> = Vec::new();
-
-                while let (Some(token), Some(_position)) = self.peek() {
-                    stmts.push(match token {
-                        Token::Variable { value: _ } => { self.parse_assign() }
-                        Token::Var => { self.parse_var() }
-                        Token::For => { self.parse_for() }
-                        Token::Read => { self.parse_read() }
-                        Token::Print => { self.parse_print() }
-                        Token::Assert => { self.parse_assert() }
-                        _ => {
-                            let err = self.parse_error(
-                                String::from("Unrecognized starting token for a statement.")
-                            );
-                            self.errors.push(err);
-                            Tree::Error
-                        }
-                    });
-
-                    self.pop();
-                }
-
-                stmts
-            }
-        }
-    }
-
-    fn parse_loop_statements(&mut self) -> Box<Tree> {
-        /*
-        Similar to parse() but has added functionality for ending loops.
-         */
-        let mut stmts: Vec<Tree> = Vec::new();
-
-        while let (Some(token), Some(_position)) = self.peek() {
-            stmts.push(match token {
-                Token::Variable { value: _ } => { self.parse_assign() }
-                Token::Var => { self.parse_var() }
-                Token::For => { self.parse_for() }
-                Token::Read => { self.parse_read() }
-                Token::Print => { self.parse_print() }
-                Token::Assert => { self.parse_assert() }
-                Token::End => { self.parse_end() }
-                _ => {
-                    let err = self.parse_error(
-                        String::from("Unrecognized starting token for a statement."
-                        )
-                    );
-                    self.errors.push(err);
-                    Tree::Error
-                }
-            });
-            if let Some(Tree::End) = stmts.last() {
-                break;
-            }
-            self.pop();
-        }
-
-        if let Some(Tree::End) = stmts.last() {
-            stmts.pop(); // Pop Tree::End since it has no actual use
-        } else {
-            self.errors.push(
-                ParserError::from(
-                    None,
-                    String::from("Loop was not closed before EOF."),
-                )
-            );
-        }
-
-        Box::from(Tree::Statements {
-            value: stmts
-        })
-    }
-
-    fn parse_error(&mut self, message: String) -> ParserError {
         let error;
 
         if let (Some(_token), Some(position)) = self.peek() {
@@ -230,330 +152,287 @@ impl Parser {
             }
         }
 
-        while let (Some(token), Some(_position)) = self.peek() {
-            if token == &Token::Semicolon {
+        while let (Some(token), Some(_position)) = self.pop() {
+            if token == Token::Semicolon {
                 break;
             }
-            self.pop();
         }
 
-        error
+        self.errors.push(error);
     }
 
-    fn parse_assign(&mut self) -> Tree {
+    fn expect(&mut self, match_token: Token) -> bool {
         /*
-        <statement> ::= <var_id> ":=" <expression> ";"
+        Checks that the next token is the expected token.
+        If it is then consume it and if it isn't then
+        handle error. Return true if next token is the expected
+        one and false if it is not.
          */
-        let var_name;
-        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
-            var_name = value.clone();
-            self.pop();
-        } else {
-            /*
-            This should never happen since this function
-            should never be called when there is no
-            variable to be parsed.
-             */
-            return Tree::Error;
+        if let (Some(token), Some(position)) = self.peek() {
+            if token.clone() == match_token {
+                self.pop(); // Consume expected token
+                return true;
+            }
         }
 
-        if let (Some(Token::Assign), Some(_position)) = self.peek() {
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected assign.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        Tree::Assign {
-            var: var_name,
-            value: Box::from(self.parse_expr()),
-        }
+        self.parse_error(String::from("Unexpected token"));
+        false
     }
 
-    fn parse_var(&mut self) -> Tree {
+    fn program(&mut self) -> AST {
         /*
-        <statement> ::= "var" <var_id> ":" <var_type> ";"
-        <statement> ::= "var" <var_id> ":" <var_type> ":=" <expression> ";"
-         */
-        self.pop(); // pop 'var'
+        <Program> ::= "program" <Id> ";" { <Procedure> | <Function> } <MainBlock> "."
+        <MainBlock> ::= <Block>
+        */
+        let id;
+        let mut procedures = vec![];
+        let mut functions = vec![];
+        let main_block;
 
-        // Get the variable name
-        let var_name: String;
-
-        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
-            var_name = value.clone();
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected variable identifier.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
+        if !self.expect(Token::Program) {
+            return AST::Error;
         }
 
-        // Check that next token is Colon
-        if let (Some(Token::Colon), Some(_position)) = self.peek() {
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected colon.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        // Check that next token is Keyword of one of the types int, string or bool
-        let var_type: VarType;
-
-        if let (Some(token), Some(_position)) = self.peek() {
+        // Get program identifier
+        if let (Some(token), Some(position)) = self.peek() {
             match token {
-                Token::Int => { var_type = VarType::Int; }
-                Token::String => { var_type = VarType::String; }
-                Token::Bool => { var_type = VarType::Bool }
+                Token::Variable { value } => {
+                    id = value.clone()
+                }
                 _ => {
-                    let err = self.parse_error(
-                        String::from("Expected keyword 'int', 'string' or 'bool'.")
-                    );
-                    self.errors.push(err);
-                    return Tree::Error;
+                    self.parse_error(String::from("Expected identifier."));
+                    return AST::Error;
                 }
-            };
-            self.pop();
+            }
         } else {
-            let err = self.parse_error(
-                String::from("Expected keyword 'int', 'string' or 'bool'.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
+            self.parse_error(String::from("Expected identifier."));
+            return AST::Error;
         }
 
-        /*
-        Check that next token exists since we are either
-        expecting Semicolon to end the line or Assign
-        followed by expression to assign some value to
-        the variable the programmer is initializing.
-        If no value is provided, default initial value
-        will be used instead:
-        int    -> 0
-        string -> ""
-        bool   -> false
-         */
-        let initial: Tree;
+        if !self.expect(Token::Semicolon) {
+            return AST::Error;
+        }
 
-        if let (Some(token), Some(_position)) = self.peek() {
+        // TODO: Parse procedures and functions!
+
+        main_block = self.block();
+
+        if !self.expect(Token::Dot) {
+            // No expected dot at the end of the program
+            AST::Error
+        } else {
+            // All is fine and we can return the program
+            AST::Program {
+                id,
+                procedures,
+                functions,
+                main: main_block,
+            }
+        }
+    }
+
+    fn statement(&mut self) -> Statement {
+        /*
+        <Statement> ::= <AssignStatement> | <CallStatement> | <ReturnStatement>
+                        <ReadStatement> | <WriteStatement> | <AssertStatement>
+                        <Block> | <IfStatement> | <WhileStatement> | <VarDeclaration>
+         */
+
+        // Check what kind of statement we are starting
+        // and call correct function to handle that case.
+        return if let (Some(token), Some(position)) = self.peek() {
             match token {
-                Token::Assign => {
-                    self.pop();
-                    initial = self.parse_expr();
+                Token::Begin => { self.block() }
+                Token::While => { self.while_statement() }
+                Token::Return => { self.return_statement() }
+                Token::If => { self.if_statement() }
+                Token::Assert => { self.assert_statement() }
+                Token::Read => { self.read_statement() }
+                Token::Writeln => { self.write_statement() }
+                Token::Var => { self.var_declaration() }
+                Token::Variable { value: _ } => { self.call_or_assign() }
+                _ => {
+                    // This is where we end up if expected statement but found
+                    // something else
+                    self.parse_error(String::from("Expected statement."));
+                    Statement::Error
                 }
-                Token::Semicolon => {
-                    match var_type {
-                        VarType::Int => { initial = Tree::Expr { value: Expr::Number { value: 0 } }; }
-                        VarType::String => { initial = Tree::Expr { value: Expr::String { value: String::from("") } }; }
-                        VarType::Bool => { initial = Tree::Expr { value: Expr::Bool { value: false } }; }
+            }
+        } else {
+            // This is where we end up if we expected statement but found EOF
+            self.parse_error(String::from("Expected statement."));
+            Statement::Error
+        };
+    }
+
+    fn block(&mut self) -> Statement {
+        /*
+        <Block> ::= "begin" { <Statement> } "end"
+
+        Expect block to start with Token::Begin.
+        We cannot be sure of this since sometimes
+        like with main block this function is called
+        directly instead of statement() calling it.
+        */
+        if !self.expect(Token::Begin) {
+            return Statement::Error;
+        }
+
+        let mut statements = vec![];
+
+        // Parse statements until we find one starting with Token::End.
+        // Use statements() to reduce code duplication.
+        while let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::End => {
+                    // Found end of the block
+                    self.pop(); // pop Token::End
+                    return Statement::Block { statements };
+                }
+                _ => {
+                    // Try parsing another statement
+                    statements.push(self.statement());
+                }
+            }
+        }
+
+        // EOF before Token::End
+        self.expect(Token::End);
+        return Statement::Error;
+    }
+
+    fn while_statement(&mut self) -> Statement {
+        // <WhileStatement> ::= "while" <Boolean expression> "do" <Statement>
+        if !self.expect(Token::While) {
+            return Statement::Error;
+        }
+
+        let expression = self.expression();
+
+        if !self.expect(Token::Do) {
+            return Statement::Error;
+        }
+
+        let statement = self.statement();
+
+        Statement::While {
+            value: expression,
+            statement: Box::from(statement),
+        }
+    }
+
+    fn if_statement(&mut self) -> Statement {
+        /*
+        <IfStatement> ::= "if" <Boolean expression> "then" <Statement>
+                        | "if" <Boolean expression> "then" <Statement> "else" <Statement>
+         */
+        todo!();
+    }
+
+    fn assert_statement(&mut self) -> Statement {
+        /*
+        <AssertStatement> ::= "assert" "(" <Boolean expression> ")" ";"
+         */
+        todo!();
+    }
+    fn read_statement(&mut self) -> Statement {
+        /*
+        <ReadStatement> ::= "read" "(" <Id> { "," <Id> } ")" ";"
+         */
+        todo!();
+    }
+    fn write_statement(&mut self) -> Statement {
+        /*
+        <WriteStatement> ::= "writeln" "(" <Arguments> ")" ";"
+         */
+        todo!();
+    }
+
+    fn var_declaration(&mut self) -> Statement {
+        /*
+        <VarDeclaration> ::= "var" <Id> { "," <Id> } ":" <Type> ";"
+         */
+        todo!();
+    }
+
+    fn call_or_assign(&mut self) -> Statement {
+        /*
+        Checks if the statement is a call or assign and
+        calls the correct handler to parse the statement.
+         */
+        todo!();
+    }
+
+    fn call(&mut self) -> Statement {
+        /*
+        <CallStatement> ::= <Id> "(" <Arguments> ")" ";"
+        TODO: Might break this into call() and call_statement()
+              since that might be handy for parsing functions that
+              are part of expressions and don't need to end in ';'.
+         */
+        todo!();
+    }
+
+    fn type_declaration(&mut self) {
+        /*
+        AssignStatement ::= <Id> ":=" <Expression> ";"
+         */
+        todo!();
+    }
+
+    fn return_statement(&mut self) -> Statement {
+        /*
+        <ReturnStatement> ::= "return" <Expression> ';'
+         */
+        if !self.expect(Token::Return) {
+            return Statement::Error;
+        }
+
+        if let (Some(token), Some(position)) = self.peek() {
+            if token.clone() == Token::Semicolon {
+                // We have return statement without return value
+                self.pop(); // Consume ';'
+                Statement::Return { value: Expression::None }
+            } else {
+                // We have return statement with return value
+                let expression = self.expression();
+                // Make sure there is ';' at the end of the statement
+                return if !self.expect(Token::Semicolon) {
+                    Statement::Error
+                } else {
+                    Statement::Return {
+                        value: expression
                     }
-                }
-                _ => {
-                    let err = self.parse_error(
-                        String::from("Unexpected token.")
-                    );
-                    self.errors.push(err);
-                    return Tree::Error;
-                }
+                };
             }
         } else {
-            let err = self.parse_error(
-                String::from("Unexpected EOF.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        Tree::Var {
-            name: var_name,
-            var_type,
-            value: Box::from(initial),
+            self.parse_error(String::from("Expected semicolon or expression."));
+            return Statement::Error;
         }
     }
 
-    fn parse_for(&mut self) -> Tree {
+    fn parse_function(&mut self) -> AST {
         /*
-        <statement> ::= "for" <var_id> "in" <expression> ".." <expression> "do" <statements> <end_for>
+        <Function> ::= "function" <Id> "(" <Parameters> ")" ";" <Block> ";"
          */
-        self.pop(); // pop 'for'
-
-        // Expect identifier
-        let var_name: String;
-        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
-            var_name = value.clone();
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected variable identifier.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        // Expect keyword 'in'
-        if let (Some(Token::In), Some(_position)) = self.peek() {
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected keyword 'in'.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        // Expect expression
-        let start = Box::from(self.parse_expr());
-
-        // Expect dots
-        if let (Some(Token::Dots), Some(_position)) = self.peek() {
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected '..'.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        // Expect Expression
-        let end = Box::from(self.parse_expr());
-
-        // Expect keyword 'do'
-        if let (Some(Token::Do), Some(_position)) = self.peek() {
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected keyword 'do'.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        Tree::For {
-            var: var_name,
-            start,
-            end,
-            statements: self.parse_loop_statements(),
-        }
+        todo!();
     }
 
-    fn parse_read(&mut self) -> Tree {
+    fn parse_procedure(&mut self) -> AST {
         /*
-        <statement> ::= "read" <var_id> ";"
+        <Procedure> ::= "procedure" <Id> "(" <Parameters> ")" ";" <Block> ";"
          */
-        self.pop(); // pop 'read'
-
-        // Check that the next token is variable
-        let var_name: String;
-
-        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
-            var_name = value.clone();
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected variable identifier.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        if let (Some(Token::Semicolon), Some(_position)) = self.peek() {
-            /* Do nothing as the statement is complete */
-        } else {
-            let err = self.parse_error(
-                String::from("Expected ';'.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        Tree::Read {
-            var: var_name
-        }
+        todo!();
     }
 
-    fn parse_print(&mut self) -> Tree {
-        /*
-        <statement> ::= "print" <expression> ";"
-         */
-        self.pop(); // pop 'print'
-        Tree::Print {
-            value: Box::from(self.parse_expr())
-        }
+    fn parameters(&mut self) {
+        todo!();
     }
 
-    fn parse_assert(&mut self) -> Tree {
+    fn expression(&mut self) -> Expression {
         /*
-        <statement> ::= "assert" <expression> ";"
+        TODO: CFG
          */
-        self.pop(); // pop 'assert'
-        Tree::Assert {
-            value: Box::from(self.parse_expr())
-        }
-    }
-
-    fn parse_end(&mut self) -> Tree {
-        /*
-        <end_for> ::= "end" "for" ";"
-         */
-        self.pop(); // pop 'end'
-
-        // Check that next token is Keyword 'for'
-        if let (Some(Token::For), Some(_position)) = self.peek() {
-            self.pop();
-        } else {
-            let err = self.parse_error(
-                String::from("Expected keyword 'for'.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        }
-
-        // Check that next token is Semicolon
-        return if let (Some(Token::Semicolon), Some(_position)) = self.peek() {
-            Tree::End
-        } else {
-            let err = self.parse_error(
-                String::from("Expected ';'.")
-            );
-            self.errors.push(err);
-            return Tree::Error;
-        };
-    }
-
-    fn parse_expr(&mut self) -> Tree {
-        /*
-        Starting point for parsing expressions.
-         */
-        let mut expr = Vec::new();
-        while let (Some(token), Some(_position)) = self.peek() {
-            match token {
-                Token::Variable { value } => { expr.push(Expr::Variable { value: value.clone() }); }
-                Token::Number { value } => { expr.push(Expr::Number { value: value.clone() }); }
-                Token::StringLiteral { value } => { expr.push(Expr::String { value: value.clone() }); }
-                Token::Minus => { expr.push(Expr::Minus); }
-                Token::Plus => { expr.push(Expr::Plus); }
-                Token::Divide => { expr.push(Expr::Div); }
-                Token::Multiply => { expr.push(Expr::Mul); }
-                Token::Not => { expr.push(Expr::Not); }
-                Token::LessThan => { expr.push(Expr::Less); }
-                Token::Equals => { expr.push(Expr::Eq); }
-                Token::And => { expr.push(Expr::And); }
-                Token::OpenParen => { expr.push(Expr::OpenParen); }
-                Token::CloseParen => { expr.push(Expr::CloseParen); }
-                _ => { break; }
-            }
-            self.pop();
-        };
-
-        Tree::Expr { value: Expression::from(&expr).expression() }
+        todo!();
     }
 }

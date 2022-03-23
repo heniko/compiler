@@ -8,7 +8,7 @@ pub struct TokenPosition {
 }
 
 /// Enum contains all possible tokens and those that can have unique values also have value field.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Variable { value: String },
     StringLiteral { value: String },
@@ -98,12 +98,12 @@ pub enum Token {
     */
     Boolean,
     False,
-    Integer,
-    Read,
-    Real,
-    Size,
-    String,
     True,
+    Integer,
+    Real,
+    String,
+    Size,
+    Read,
     Writeln,
 }
 
@@ -157,7 +157,7 @@ impl Cursor {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Scanner {
     cursor: Cursor,
     pub tokens: Vec<Token>,
@@ -236,7 +236,7 @@ impl Scanner {
                 ':' => { self.scan_colon() }
                 'A'..='Z' | 'a'..='z' => { self.scan_variable() } // A-Z|a-z
                 '0'..='9' => { self.scan_number() } // 0-9
-                '.' => { self.scan_dot() }
+                //'.' => { self.scan_dot() }
                 '"' => { self.scan_string() }
                 ' ' | '\n' | '\r' | '\t' => { Token::Whitespace }
                 _ => { // All other characters that are not recognized.
@@ -495,7 +495,7 @@ impl Scanner {
         token.
         */
 
-        Token::Number { value: s.parse::<i32>().unwrap() }
+        Token::IntegerLiteral { value: s.parse::<i32>().unwrap() }
     }
 
     fn scan_variable(&mut self) -> Token {
@@ -515,7 +515,7 @@ impl Scanner {
             variable names with numeric values (For example 'num1') this
             only needs to check for each character that it is alphanumeric.
              */
-            if c.is_alphanumeric() | c == '_' {
+            if c.is_alphanumeric() || c == '_' {
                 s.push(c);
                 self.cursor.inc();
             } else {

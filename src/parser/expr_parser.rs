@@ -1,13 +1,13 @@
 use super::*;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct Cursor {
-    tokens: Vec<Expr>,
+    tokens: Vec<Expression>,
     index: usize,
 }
 
 impl Cursor {
-    fn from(tokens: &Vec<Expr>, index: usize) -> Cursor {
+    fn from(tokens: &Vec<Expression>, index: usize) -> Cursor {
         Cursor { tokens: tokens.clone(), index }
     }
 
@@ -18,22 +18,22 @@ impl Cursor {
         }
     }
 
-    fn advance(&mut self) -> Expr {
+    fn advance(&mut self) -> Expression {
         if !self.is_end() {
             self.index += 1;
         }
         self.previous()
     }
 
-    fn previous(&mut self) -> Expr {
+    fn previous(&mut self) -> Expression {
         self.tokens.get(self.index - 1).unwrap().clone()
     }
 
-    fn peek(&mut self) -> Expr {
+    fn peek(&mut self) -> Expression {
         self.tokens.get(self.index).unwrap().clone()
     }
 
-    fn check(&mut self, e: Expr) -> bool {
+    fn check(&mut self, e: Expression) -> bool {
         return if self.is_end() {
             false
         } else {
@@ -41,7 +41,7 @@ impl Cursor {
         };
     }
 
-    fn matches(&mut self, v: Vec<Expr>) -> bool {
+    fn matches(&mut self, v: Vec<Expression>) -> bool {
         for i in v.iter() {
             if self.check(i.clone()) {
                 self.advance();
@@ -52,19 +52,19 @@ impl Cursor {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct Expression {
+#[derive(Debug, PartialEq)]
+pub struct ExpressionParser {
     cursor: Cursor,
 }
 
-impl Expression {
-    pub fn from(expr: &Vec<Expr>) -> Expression {
-        Expression {
+impl ExpressionParser {
+    pub fn from(expr: &Vec<Expression>) -> ExpressionParser {
+        ExpressionParser {
             cursor: Cursor::from(expr, 0)
         }
     }
 
-    pub fn expression(&mut self) -> Expr {
+    pub fn expression(&mut self) -> Expression {
         /*
         Implementation based on example from
         https://craftinginterpreters.com/parsing-expressions.html
@@ -74,7 +74,7 @@ impl Expression {
         self.and()
     }
 
-    fn and(&mut self) -> Expr {
+    fn and(&mut self) -> Expression {
         /*
         <and> ::= <and> "&" <equality>
         <and> ::= <equality> "&" <equality>
@@ -82,8 +82,8 @@ impl Expression {
          */
         let mut expr = self.equality();
 
-        while self.cursor.matches(vec![Expr::And]) {
-            expr = Expr::Binary {
+        while self.cursor.matches(vec![Expression::And]) {
+            expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
                 right: Box::from(self.equality()),
@@ -93,7 +93,7 @@ impl Expression {
         expr
     }
 
-    fn equality(&mut self) -> Expr {
+    fn equality(&mut self) -> Expression {
         /*
         <equality> ::= <equality> "=" <comparison>
         <equality> ::= <comparison> "=" <comparison>
@@ -101,8 +101,8 @@ impl Expression {
          */
         let mut expr = self.comparison();
 
-        while self.cursor.matches(vec![Expr::Eq]) {
-            expr = Expr::Binary {
+        while self.cursor.matches(vec![Expression::Eq]) {
+            expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
                 right: Box::from(self.comparison()),
@@ -112,7 +112,7 @@ impl Expression {
         expr
     }
 
-    fn comparison(&mut self) -> Expr {
+    fn comparison(&mut self) -> Expression {
         /*
         <comparison> ::= <comparison> ">" <term>
         <comparison> ::= <term> ">" <term>
@@ -120,8 +120,8 @@ impl Expression {
          */
         let mut expr = self.term();
 
-        while self.cursor.matches(vec![Expr::Less]) {
-            expr = Expr::Binary {
+        while self.cursor.matches(vec![Expression::Le]) {
+            expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
                 right: Box::from(self.term()),
@@ -131,7 +131,7 @@ impl Expression {
         expr
     }
 
-    fn term(&mut self) -> Expr {
+    fn term(&mut self) -> Expression {
         /*
         <term> ::= <term> "+" | "-"
         <term> ::= <factor> "+" | "-" <factor>
@@ -139,8 +139,8 @@ impl Expression {
          */
         let mut expr = self.factor();
 
-        while self.cursor.matches(vec![Expr::Plus, Expr::Minus]) {
-            expr = Expr::Binary {
+        while self.cursor.matches(vec![Expression::Plus, Expression::Minus]) {
+            expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
                 right: Box::from(self.factor()),
@@ -150,7 +150,7 @@ impl Expression {
         expr
     }
 
-    fn factor(&mut self) -> Expr {
+    fn factor(&mut self) -> Expression {
         /*
         <factor> ::= <factor> "*" | "/" <unary>
         <factor> ::= <unary> "*" | "/" <unary>
@@ -158,8 +158,8 @@ impl Expression {
          */
         let mut expr = self.unary();
 
-        while self.cursor.matches(vec![Expr::Mul, Expr::Div]) {
-            expr = Expr::Binary {
+        while self.cursor.matches(vec![Expression::Multiply, Expression::Divide]) {
+            expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
                 right: Box::from(self.unary()),
@@ -169,49 +169,49 @@ impl Expression {
         expr
     }
 
-    fn unary(&mut self) -> Expr {
+    fn unary(&mut self) -> Expression {
         /*
         <unary> ::= "" | "-" | "!" <primary>
         <unary> ::= <primary>
          */
-        if self.cursor.matches(vec![Expr::Not, Expr::Minus]) {
+        if self.cursor.matches(vec![Expression::Not, Expression::Minus]) {
             let op = self.cursor.previous();
             let r = self.unary();
-            return Expr::Unary { op: Box::from(op), value: Box::from(r) };
+            return Expression::Unary { op: Box::from(op), value: Box::from(r) };
         }
         self.primary()
     }
 
-    fn primary(&mut self) -> Expr {
+    fn primary(&mut self) -> Expression {
         /*
         <primary> ::= <string> | <number> | <variable> | "(" <expression> ")"
          */
         let ex = self.cursor.peek();
         let e = ex.clone();
         return match ex {
-            Expr::Number { value: _ } => {
+            Expression::IntegerLiteral { value: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
-            Expr::Variable { value: _ } => {
+            Expression::Variable { id: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
-            Expr::String { value: _ } => {
+            Expression::StringLiteral { value: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
-            Expr::OpenParen => {
+            Expression::OpenParen => {
                 self.cursor.advance();
                 let expr = self.expression();
-                return if self.cursor.matches(vec![Expr::CloseParen]) {
-                    Expr::Group { value: Box::from(expr) }
+                return if self.cursor.matches(vec![Expression::CloseParen]) {
+                    Expression::Group { value: Box::from(expr) }
                 } else {
-                    Expr::Error
+                    Expression::Error
                 };
             }
             _ => {
-                Expr::Error
+                Expression::Error
             }
         };
     }
