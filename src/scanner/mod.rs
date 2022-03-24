@@ -103,8 +103,6 @@ pub enum Token {
     Real,
     String,
     Size,
-    Read,
-    Writeln,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -205,6 +203,7 @@ impl Scanner {
     }
 
     pub fn scan(&mut self) {
+        dbg!("Start scanning...");
         /*
         Goes trough the source code character by character. Confirmed single
         character tokens have value assigned instantly and (possible) multi character
@@ -234,7 +233,11 @@ impl Scanner {
                 ';' => { Token::Semicolon }
                 '{' => { self.scan_multiline_comment() }
                 ':' => { self.scan_colon() }
-                'A'..='Z' | 'a'..='z' => { self.scan_variable() } // A-Z|a-z
+                'A'..='Z' | 'a'..='z' => {
+                    // A-Z|a-z
+                    dbg!("Scan variable...");
+                    self.scan_variable()
+                }
                 '0'..='9' => { self.scan_number() } // 0-9
                 //'.' => { self.scan_dot() }
                 '"' => { self.scan_string() }
@@ -557,16 +560,18 @@ impl Scanner {
 
             "Boolean" | "false" | "integer" | "read" | "real" | "size" |
             "string" | "true" | "writeln"
+
+            Handling 'read' and 'writeln' saves us a few edge
+            cases in parser since they might be redefined as
+            other functions/procedures.
              */
             "boolean" => { Token::Boolean }
             "false" => { Token::False }
             "integer" => { Token::Integer }
-            "read" => { Token::Read }
             "real" => { Token::Real }
             "size" => { Token::Size }
             "String" => { Token::String }
             "true" => { Token::True }
-            "writeln" => { Token::Writeln }
             _ => {
                 Token::Variable { value: s }
             }

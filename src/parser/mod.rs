@@ -28,7 +28,7 @@ pub enum Statement {
     Assert { value: Expression },
     Block { statements: Vec<Statement> },
     If { value: Expression, statement: Box<Statement> },
-    IfElse { value: Expression, statement: Box<Statement> },
+    IfElse { value: Expression, if_statement: Box<Statement>, else_statement: Box<Statement> },
     While { value: Expression, statement: Box<Statement> },
     VarDeclaration { ids: Vec<String>, var_type: VarType },
 }
@@ -56,7 +56,7 @@ pub enum Expression {
     RealLiteral { value: f32 },
     True,
     False,
-    Function { id: String, parameters: Vec<Parameter> },
+    Function { id: String, parameters: Vec<Expression> },
     Variable { id: String },
     OpenParen,
     CloseParen,
@@ -65,19 +65,13 @@ pub enum Expression {
     Group { value: Box<Expression> },
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Parameter {
-    Parameter { id: String, par_type: VarType },
-    End,
-    Error,
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum AST {
     Error,
     Program { id: String, functions: Vec<AST>, procedures: Vec<AST>, main: Statement },
     Procedure { parameters: Vec<AST>, block: Statement },
     Function { parameters: Vec<AST>, block: Box<AST>, res_type: VarType },
+    Call { parameter: Expression },
     Parameters,
     Parameter,
     SimpleType,
@@ -172,10 +166,14 @@ impl Parser {
             if token.clone() == match_token {
                 self.pop(); // Consume expected token
                 return true;
+            } else {
+                let err_token = token.clone();
+                self.parse_error(format!("Expected token: {:?}, found token: {:?}.", match_token.clone(), err_token));
+                return false;
             }
         }
 
-        self.parse_error(String::from("Unexpected token"));
+        self.parse_error(String::from("Expected token."));
         false
     }
 
@@ -197,7 +195,8 @@ impl Parser {
         if let (Some(token), Some(position)) = self.peek() {
             match token {
                 Token::Variable { value } => {
-                    id = value.clone()
+                    id = value.clone();
+                    self.pop();
                 }
                 _ => {
                     self.parse_error(String::from("Expected identifier."));
@@ -213,7 +212,25 @@ impl Parser {
             return AST::Error;
         }
 
-        // TODO: Parse procedures and functions!
+        /*
+        Check if another function or procedure is added
+        if yes then call correct handler and add the
+        function/procedure to AST and if not move on
+        and expect main block.
+         */
+        while let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::Procedure => {
+                    todo!();
+                }
+                Token::Function => {
+                    todo!();
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
 
         main_block = self.block();
 
@@ -242,15 +259,34 @@ impl Parser {
         // and call correct function to handle that case.
         return if let (Some(token), Some(position)) = self.peek() {
             match token {
-                Token::Begin => { self.block() }
-                Token::While => { self.while_statement() }
-                Token::Return => { self.return_statement() }
-                Token::If => { self.if_statement() }
-                Token::Assert => { self.assert_statement() }
-                Token::Read => { self.read_statement() }
-                Token::Writeln => { self.write_statement() }
-                Token::Var => { self.var_declaration() }
-                Token::Variable { value: _ } => { self.call_or_assign() }
+                Token::Begin => {
+                    dbg!("Parse begin");
+                    self.block()
+                }
+                Token::While => {
+                    dbg!("Parse while");
+                    self.while_statement()
+                }
+                Token::Return => {
+                    dbg!("parse return");
+                    self.return_statement()
+                }
+                Token::If => {
+                    dbg!("Parse if");
+                    self.if_statement()
+                }
+                Token::Assert => {
+                    dbg!("Parse assert");
+                    self.assert_statement()
+                }
+                Token::Var => {
+                    dbg!("Parse variable declaration");
+                    self.var_declaration()
+                }
+                Token::Variable { value: _ } => {
+                    dbg!("Parse assign or call");
+                    self.call_or_assign()
+                }
                 _ => {
                     // This is where we end up if expected statement but found
                     // something else
@@ -326,24 +362,93 @@ impl Parser {
         <IfStatement> ::= "if" <Boolean expression> "then" <Statement>
                         | "if" <Boolean expression> "then" <Statement> "else" <Statement>
          */
-        todo!();
+        if !self.expect(Token::If) {
+            return Statement::Error;
+        }
+
+        let expression = self.expression();
+
+        if !self.expect(Token::Then) {
+            return Statement::Error;
+        }
+
+        let statement = self.statement();
+
+        if let (Some(token), Some(_position)) = self.peek() {
+            match token {
+                Token::Else => {
+                    self.pop(); // pop Token::Else
+                    let else_statement = self.statement();
+                    return Statement::IfElse {
+                        value: expression,
+                        if_statement: Box::from(statement),
+                        else_statement: Box::from(else_statement),
+                    };
+                }
+                _ => { /* Do nothing */ }
+            }
+        }
+
+        Statement::If {
+            value: expression,
+            statement: Box::from(statement),
+        }
     }
 
     fn assert_statement(&mut self) -> Statement {
         /*
-        <AssertStatement> ::= "assert" "(" <Boolean expression> ")" ";"
+        <AssertStatement> ::= "assert" "(" <Argument> ")" ";"
+
+        This differs a bit from read and write statements
+        since assert is not treated as a predefined identifier
+        but is actually language keyword instead.
          */
-        todo!();
+        if !self.expect(Token::Assert) {
+            return Statement::Error;
+        }
+
+        let mut arguments = self.arguments();
+
+        if !self.expect(Token::Semicolon) {
+            return Statement::Error;
+        }
+
+        /*
+        Check that arguments only has one element since
+        assert will always only take one expression as
+        argument.
+         */
+        return if arguments.len() == 1 {
+            Statement::Assert {
+                value: arguments.pop().unwrap()
+            }
+        } else {
+            self.errors.push(
+                ParserError {
+                    message: String::from("Assert can only take one argument."),
+                    position: None,
+                }
+            );
+            Statement::Error
+        };
     }
+
     fn read_statement(&mut self) -> Statement {
         /*
         <ReadStatement> ::= "read" "(" <Id> { "," <Id> } ")" ";"
+
+        TODO: This might be just a function that automatically
+              gets added if the user doesn't declare function
+              with the same name.
          */
         todo!();
     }
+
     fn write_statement(&mut self) -> Statement {
         /*
         <WriteStatement> ::= "writeln" "(" <Arguments> ")" ";"
+
+        TODO: Might be just a normal function: See read_statement()
          */
         todo!();
     }
@@ -427,6 +532,97 @@ impl Parser {
 
     fn parameters(&mut self) {
         todo!();
+    }
+
+    fn id(&mut self) -> String {
+        /*
+        <Id> ::= <Letter> { <Letter> | <Digit> | "_" }
+        <Letter> ::= <Alphabetical character>
+        <Digit> ::= <Numerical character>
+
+        Checks that the next next token is Token::Variable
+        and returns the string stored as identifier.
+         */
+        if let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::Variable { value } => {
+                    let res = value.clone();
+                    self.pop(); // pop Token::Variable
+                    return res;
+                }
+                _ => {}
+            }
+        }
+
+        self.parse_error(String::from("Expected identifier."));
+        String::new()
+    }
+
+    fn arguments(&mut self) -> Vec<Expression> {
+        /*
+        <Arguments> ::= "(" { <Expression> [","]} ")"
+
+        Split arguments into individual expressions and use
+        expression() to parse the expressions. Arguments will
+        be inside parenthesis divided with commas e.g.
+
+        '(<Expression>, <Expression>, <Expression>)'
+
+        Since the expressions may contain parenthesis and
+        even other function calls themselves we need to
+        also keep track of the parenthesis count so we
+        know the 'depth' we are at in the arguments e.g.
+
+        'function_1(function_2(variable_1, variable_2), variable_1)'
+
+        For function_1 the arguments would be:
+
+        [
+            function_2(variable_1, variable_2),
+            variable_1
+        ]
+
+        TODO: Parameters are supposed to be always passed
+              as reference where functions/procedures can
+              read/write to the parameter memory address
+              so how are these handled when the parameters
+              are expressions? If the parameter is complex
+              expression do we create new memory address for
+              it and if it is simple variable pass the variable?
+              If parameter itself involves functions/procedures
+              that change some variable it is probably important
+              to also evaluate them in some specific order?
+         */
+        if self.expect(Token::OpenParen) {
+            return vec![];
+        }
+
+        let mut paren_count = 1;
+
+        // TODO: Actually handle expressions
+        while let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::OpenParen => {
+                    self.pop();
+                    paren_count += 1;
+                }
+                Token::CloseParen => {
+                    self.pop();
+                    paren_count -= 1;
+                }
+                _ => {
+                    self.pop();
+                }
+            }
+
+            if paren_count == 0 {
+                return vec![]; // Placeholder for success
+            }
+        }
+
+        // If we get here we have unmatched paren count
+        self.parse_error(String::from("Number of opening and closing parenthesis did not match."));
+        vec![] // Placeholder for fail
     }
 
     fn expression(&mut self) -> Expression {

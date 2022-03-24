@@ -13,9 +13,11 @@ use scanner::{Scanner, Token};
 fn main() {
     let mut io = UserIO::from();
     println!("Source code location:");
-    let path = io.read();
+    //let path = io.read();
+    let path = String::from("programs/hello_world.minipl");
     let source = read_file(path.as_str());
 
+    dbg!(source.clone());
     /*
     Use scanner to find tokens. Check if scanner
     found unrecognized tokens and if so report
@@ -23,7 +25,7 @@ fn main() {
      */
     let mut scanner = Scanner::from(&source);
     scanner.scan();
-    //dbg!(scanner.tokens.clone());
+    dbg!(scanner.tokens.clone());
     let tokens = scanner.tokens;
     let positions = scanner.positions;
     let mut scanner_errors = 0;
@@ -53,7 +55,7 @@ fn main() {
      */
     let parser = Parser::from(&tokens, &positions);
 
-    //dbg!(parser.ast.clone());
+    dbg!(parser.ast.clone());
 
     if !parser.errors.is_empty() {
         for e in parser.errors.iter() {
