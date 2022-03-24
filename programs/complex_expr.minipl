@@ -1,2 +1,0 @@
-var e: string := "Expression " + (2-1) + "+" + (1*1) + "=2 is " + (1+1=2);
-print e;

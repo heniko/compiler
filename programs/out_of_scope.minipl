@@ -1,5 +1,0 @@
-var i:int;
-for i in 1..2 do
-  var j:int := 1;
-end for;
-print j;

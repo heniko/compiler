@@ -1,5 +1,0 @@
-var i:int;
-for i in 10..1 do
-  print "" + i + "\n";
-end for;
-print "LIFT-OFF!";
