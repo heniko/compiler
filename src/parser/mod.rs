@@ -3,7 +3,7 @@ mod expr_parser;
 use crate::scanner::{Token, TokenPosition};
 use std::collections::VecDeque;
 use std::string::ParseError;
-//use expr_parser::Expression;
+use expr_parser::ExpressionParser;
 
 #[cfg(test)]
 mod tests;
@@ -54,9 +54,8 @@ pub enum Expression {
     StringLiteral { value: String },
     IntegerLiteral { value: i32 },
     RealLiteral { value: f32 },
-    True,
-    False,
-    Function { id: String, parameters: Vec<Expression> },
+    BooleanLiteral { value: bool },
+    Function { id: String, arguments: Vec<Expression> },
     Variable { id: String },
     OpenParen,
     CloseParen,
@@ -120,6 +119,10 @@ impl Parser {
 
     fn peek(&mut self) -> (Option<&Token>, Option<&TokenPosition>) {
         (self.tokens.front(), self.positions.front())
+    }
+
+    fn next(&mut self) -> (Option<&Token>, Option<&TokenPosition>) {
+        (self.tokens.get(1), self.positions.get(1))
     }
 
     fn parse_error(&mut self, message: String) {
@@ -465,20 +468,68 @@ impl Parser {
         Checks if the statement is a call or assign and
         calls the correct handler to parse the statement.
          */
-        todo!();
+        return if let (Some(token), Some(position)) = self.next() {
+            return match token {
+                Token::Assign => {
+                    self.assign()
+                }
+                Token::OpenParen => {
+                    self.call()
+                }
+                _ => {
+                    // Not assign or call so we don't know what it is
+                    self.parse_error(String::from("Expected ':=' or '('."));
+                    Statement::Error
+                }
+            };
+        } else {
+            // EOF
+            self.parse_error(String::from("Expected ':=' or '('."));
+            Statement::Error
+        };
     }
 
     fn call(&mut self) -> Statement {
         /*
-        <CallStatement> ::= <Id> "(" <Arguments> ")" ";"
-        TODO: Might break this into call() and call_statement()
-              since that might be handy for parsing functions that
-              are part of expressions and don't need to end in ';'.
+        <CallStatement> ::= <Id> <Arguments> ";"
          */
-        todo!();
+        let id;
+        let arguments;
+
+        // Get function/procedure id
+        if let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::Variable { value } => {
+                    id = value.clone();
+                    self.pop();
+                }
+                _ => {
+                    // Token was not id
+                    self.parse_error(String::from("Expected function or procedure identifier."));
+                    return Statement::Error;
+                }
+            }
+        } else {
+            // EOF
+            self.parse_error(String::from("Expected function or procedure identifier."));
+            return Statement::Error;
+        }
+
+        // Get arguments
+        arguments = self.arguments();
+
+        // Check that statement end with semicolon
+        if !self.expect(Token::Semicolon) {
+            Statement::Error
+        } else {
+            Statement::Call {
+                id,
+                arguments,
+            }
+        }
     }
 
-    fn type_declaration(&mut self) {
+    fn assign(&mut self) -> Statement {
         /*
         AssignStatement ::= <Id> ":=" <Expression> ";"
          */
@@ -559,6 +610,7 @@ impl Parser {
     }
 
     fn arguments(&mut self) -> Vec<Expression> {
+        dbg!("Hello from arguments");
         /*
         <Arguments> ::= "(" { <Expression> [","]} ")"
 
@@ -593,42 +645,152 @@ impl Parser {
               that change some variable it is probably important
               to also evaluate them in some specific order?
          */
-        if self.expect(Token::OpenParen) {
+        if !self.expect(Token::OpenParen) {
             return vec![];
         }
 
-        let mut paren_count = 1;
+        let mut arguments = vec![];
 
-        // TODO: Actually handle expressions
         while let (Some(token), Some(position)) = self.peek() {
             match token {
-                Token::OpenParen => {
+                Token::Comma => {
                     self.pop();
-                    paren_count += 1;
+                    arguments.push(self.expression());
                 }
                 Token::CloseParen => {
                     self.pop();
-                    paren_count -= 1;
+                    break;
                 }
                 _ => {
-                    self.pop();
+                    arguments.push(self.expression());
                 }
-            }
-
-            if paren_count == 0 {
-                return vec![]; // Placeholder for success
             }
         }
 
-        // If we get here we have unmatched paren count
-        self.parse_error(String::from("Number of opening and closing parenthesis did not match."));
-        vec![] // Placeholder for fail
+        arguments
     }
 
     fn expression(&mut self) -> Expression {
+        dbg!("Hello from expression");
         /*
-        TODO: CFG
+        Functionality:
+         - Starting point for parsing any kind of expression
+         - Turn Vecdeque<Token> to Vec<Expression> and use
+           expr_parser to parse the expression
+         - Recursively parse functions to Expression::Function
          */
-        todo!();
+        let mut expr_tokens = vec![];
+        /*
+        If paren_count goes under 0 then we know we are out
+        of the expression. Consider:
+
+        We need to parse
+        writeln((1+2)*3);
+
+        arguments() calls this function at the point where the
+        first expression starts:
+
+        (1+2)*3);
+
+        We parse the expression and when only
+
+        );
+
+        is left paren_count will be -1 and we know that is the
+        end of the expression even though ')' could as a character be
+        part of the expression. We can also stop parsing the expression
+        if we find some character that clearly isn't part of the
+        expression like ';'.
+         */
+        let mut paren_count = 0;
+
+        while let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::OpenParen => {
+                    paren_count += 1;
+                    expr_tokens.push(Expression::OpenParen);
+                }
+                Token::CloseParen => {
+                    paren_count -= 1;
+                    if paren_count == -1 {
+                        // We found parenthesis that is outside of the expression
+                        break;
+                    } else {
+                        // We did not find ending parenthesis
+                        expr_tokens.push(Expression::CloseParen);
+                    }
+                }
+                Token::Plus => { expr_tokens.push(Expression::Plus); }
+                Token::Minus => { expr_tokens.push(Expression::Minus); }
+                Token::Multiply => { expr_tokens.push(Expression::Multiply); }
+                Token::Divide => { expr_tokens.push(Expression::Divide); }
+                Token::Le => { expr_tokens.push(Expression::Le); }
+                Token::Leq => { expr_tokens.push(Expression::Leq); }
+                Token::Ge => { expr_tokens.push(Expression::Ge); }
+                Token::Geq => { expr_tokens.push(Expression::Geq); }
+                Token::Inequality => { expr_tokens.push(Expression::Inequality); }
+                Token::Eq => { expr_tokens.push(Expression::Eq); }
+                Token::Or => { expr_tokens.push(Expression::Or); }
+                Token::And => { expr_tokens.push(Expression::And); }
+                Token::Not => { expr_tokens.push(Expression::Not); }
+                Token::Variable { value } => {
+                    expr_tokens.push(self.variable_or_function_expression());
+                    continue; // Skip loop pop() to make things easier
+                }
+                Token::StringLiteral { value } => {
+                    expr_tokens.push(Expression::StringLiteral { value: value.clone() });
+                }
+                Token::IntegerLiteral { value } => {
+                    expr_tokens.push(Expression::IntegerLiteral { value: value.clone() });
+                }
+                Token::RealLiteral { value } => {
+                    expr_tokens.push(Expression::RealLiteral { value: value.clone() });
+                }
+                Token::True => {
+                    expr_tokens.push(Expression::BooleanLiteral { value: true });
+                }
+                Token::False => {
+                    expr_tokens.push(Expression::BooleanLiteral { value: false });
+                }
+                _ => {
+                    // Found token that cannot be part of expression like ';'
+                    break;
+                }
+            }
+            self.pop();
+        }
+
+        let mut expression_parser = ExpressionParser::from(&expr_tokens);
+        expression_parser.expression()
+    }
+
+    fn variable_or_function_expression(&mut self) -> Expression {
+        dbg!("Hello from variable_or_function_expression");
+        let id;
+        if let (Some(Token::Variable { value }), Some(p)) = self.pop() {
+            id = value;
+        } else {
+            // Should not happen but makes sure id is initialized
+            self.parse_error(String::from("Expected Token::Variable."));
+            return Expression::Error;
+        }
+
+        if let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::OpenParen => {
+                    // We are dealing with a function call
+                    Expression::Function {
+                        id: id.clone(),
+                        arguments: self.arguments(),
+                    }
+                }
+                _ => {
+                    // We are dealing with a variable
+                    Expression::Variable { id: id.clone() }
+                }
+            }
+        } else {
+            Expression::Variable { id: id.clone() }
+        }
     }
 }

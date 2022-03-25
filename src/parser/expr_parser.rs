@@ -71,7 +71,11 @@ impl ExpressionParser {
 
         <expression> ::= <and>
          */
-        self.and()
+        if self.cursor.is_end() {
+            Expression::None
+        }else {
+            self.and()
+        }
     }
 
     fn and(&mut self) -> Expression {

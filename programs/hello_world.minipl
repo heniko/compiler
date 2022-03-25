@@ -1,4 +1,4 @@
 program hello_world;
 begin
-  //print("Hello world!");
+  writeln("Hello world!", 1+2=3);
 end.

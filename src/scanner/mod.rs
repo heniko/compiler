@@ -226,6 +226,7 @@ impl Scanner {
                 '-' => { Token::Minus }
                 '*' => { Token::Multiply }
                 '%' => { Token::Modulo }
+                ',' => { Token::Comma }
                 '/' => { self.scan_forward_slash() }
                 '<' => { self.scan_le() }
                 '>' => { self.scan_ge() }
