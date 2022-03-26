@@ -446,27 +446,27 @@ impl Parser {
         let var_type;
         let arr;
 
-        loop {
-            if let (Some(token), Some(position)) = self.peek() {
-                match token {
-                    Token::Comma => {
-                        self.pop(); // pop ,
-                        // Check that we have id next and add the name to ids
-                        if let (Some(t), Some(p)) = self.peek() {
-                            match t {
-                                Token::Variable { value } => {
-                                    ids.push(value.clone());
-                                }
-                                _ => {
-                                    self.parse_error(String::from("Expected identifier."));
-                                    return Statement::Error;
-                                }
-                            }
-                        }
-                    }
-                    _ => { break; }
+        while let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
+            ids.push(value.clone());
+            self.pop();
+
+            if let (Some(t), Some(_p)) = self.peek() {
+                /*
+                pop comma if there is one and check that there is
+                a variable next so for example
+
+                var s1, s2, s3, : string;
+
+                isn't valid.
+                 */
+                self.pop();
+                if let (Some(Token::Variable { value: _ }), Some(_p)) = self.peek() {
+                    /* Do nothing */
+                } else {
+                    self.parse_error(String::from("Expected identifier."));
+                    return Statement::Error;
                 }
-            } else { break; }
+            }
         }
 
         // All var ids are parsed so expect :
@@ -508,12 +508,12 @@ impl Parser {
         }
 
         // Expect statement to end in ;
-        if !self.expect(Token::Semicolon) {
-            return Statement::Error;
+        return if !self.expect(Token::Semicolon) {
+            Statement::Error
         } else {
             // Everything is fine and we can return variable declarations
-            return Statement::Error;
-        }
+            Statement::Error
+        };
     }
 
     fn call_or_assign(&mut self) -> Statement {
@@ -550,21 +550,11 @@ impl Parser {
         let arguments;
 
         // Get function/procedure id
-        if let (Some(token), Some(position)) = self.peek() {
-            match token {
-                Token::Variable { value } => {
-                    id = value.clone();
-                    self.pop();
-                }
-                _ => {
-                    // Token was not id
-                    self.parse_error(String::from("Expected function or procedure identifier."));
-                    return Statement::Error;
-                }
-            }
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
+            id = value.clone();
+            self.pop();
         } else {
-            // EOF
-            self.parse_error(String::from("Expected function or procedure identifier."));
+            self.parse_error(String::from(""));
             return Statement::Error;
         }
 
@@ -597,27 +587,17 @@ impl Parser {
             return Statement::Error;
         }
 
-        if let (Some(token), Some(position)) = self.peek() {
-            if token.clone() == Token::Semicolon {
-                // We have return statement without return value
-                self.pop(); // Consume ';'
-                Statement::Return { value: Expression::None }
-            } else {
-                // We have return statement with return value
-                let expression = self.expression();
-                // Make sure there is ';' at the end of the statement
-                return if !self.expect(Token::Semicolon) {
-                    Statement::Error
-                } else {
-                    Statement::Return {
-                        value: expression
-                    }
-                };
-            }
+        // Get expression (This will also return Expression::None if there isn't one)
+        let expression = self.expression();
+
+        // Check that statement ends in ;
+        return if !self.expect(Token::Semicolon) {
+            Statement::Error
         } else {
-            self.parse_error(String::from("Expected semicolon or expression."));
-            return Statement::Error;
-        }
+            Statement::Return {
+                value: expression
+            }
+        };
     }
 
     fn parse_function(&mut self) -> AST {
@@ -661,16 +641,16 @@ impl Parser {
 
         block = self.block();
 
-        if !self.expect(Token::Semicolon) {
-            return AST::Error;
+        return if !self.expect(Token::Semicolon) {
+            AST::Error
         } else {
-            return AST::Function {
+            AST::Function {
                 id,
                 parameters,
                 res_type,
                 block,
-            };
-        }
+            }
+        };
     }
 
     fn parse_procedure(&mut self) -> AST {
@@ -709,7 +689,7 @@ impl Parser {
                 parameters,
                 block,
             }
-        }
+        };
     }
 
     fn parameters(&mut self) -> Vec<VariableDeclaration> {
@@ -719,34 +699,39 @@ impl Parser {
             return vec![];
         }
 
+        if let (Some(Token::Comma), Some(_position)) = self.peek() {
+            self.parse_error(String::from("Expected parameter."));
+            return vec![];
+        }
+
         loop {
             if let (Some(token), Some(position)) = self.peek() {
-                match token {
-                    Token::Comma => {
-                        self.pop();
-                        let par = self.parameter();
-                        match par {
-                            Some(p) => {
-                                parameters.push(p);
-                            }
-                            None => {
-                                self.parse_error(String::from("Error while parsing parameter."));
-                            }
-                        }
+                // If ')' is next we break out of the loop
+                if token == &Token::CloseParen {
+                    break;
+                }
+
+                /*
+                Get rid of commas that separate parameters.
+
+                This would technically make
+
+                function x(,x : integer) : string;
+
+                valid if we didn't check it before the loop.
+                 */
+                if token == &Token::Comma {
+                    self.pop();
+                }
+
+                // Parse parameter and add it to the list
+                let param = self.parameter();
+                match param {
+                    Some(p) => {
+                        parameters.push(p);
                     }
-                    Token::Variable { value } => {
-                        let par = self.parameter();
-                        match par {
-                            Some(p) => {
-                                parameters.push(p);
-                            }
-                            None => {
-                                self.parse_error(String::from("Error while parsing parameter."));
-                            }
-                        }
-                    }
-                    _ => {
-                        break;
+                    None => {
+                        self.parse_error(String::from("Error while parsing parameters."));
                     }
                 }
             }
@@ -984,7 +969,7 @@ impl Parser {
 
     fn variable_or_function_expression(&mut self) -> Expression {
         let id;
-        if let (Some(Token::Variable { value }), Some(p)) = self.pop() {
+        if let (Some(Token::Variable { value }), Some(_p)) = self.pop() {
             id = value;
         } else {
             // Should not happen but makes sure id is initialized
@@ -992,22 +977,13 @@ impl Parser {
             return Expression::Error;
         }
 
-        if let (Some(token), Some(position)) = self.peek() {
-            match token {
-                Token::OpenParen => {
-                    // We are dealing with a function call
-                    Expression::Function {
-                        id: id.clone(),
-                        arguments: self.arguments(),
-                    }
-                }
-                _ => {
-                    // We are dealing with a variable
-                    Expression::Variable { id: id.clone() }
-                }
+        return if let (Some(Token::OpenParen), Some(_position)) = self.peek() {
+            Expression::Function {
+                id: id.clone(),
+                arguments: self.arguments(),
             }
         } else {
             Expression::Variable { id: id.clone() }
-        }
+        };
     }
 }
