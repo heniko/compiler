@@ -90,19 +90,6 @@ pub enum Token {
     Program,
     Assert,
     Return,
-    /*
-    Predefined id:
-
-    "Boolean" | "false" | "integer" | "read" | "real" | "size" |
-    "string" | "true" | "writeln"
-    */
-    Boolean,
-    False,
-    True,
-    Integer,
-    Real,
-    String,
-    Size,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -553,23 +540,6 @@ impl Scanner {
             "program" => { Token::Program }
             "assert" => { Token::Assert }
             "return" => { Token::Return }
-            /*
-            Predefined id:
-
-            "Boolean" | "false" | "integer" | "read" | "real" | "size" |
-            "string" | "true" | "writeln"
-
-            Handling 'read' and 'writeln' saves us a few edge
-            cases in parser since they might be redefined as
-            other functions/procedures.
-             */
-            "boolean" => { Token::Boolean }
-            "false" => { Token::False }
-            "integer" => { Token::Integer }
-            "real" => { Token::Real }
-            "size" => { Token::Size }
-            "String" => { Token::String }
-            "true" => { Token::True }
             _ => {
                 Token::Variable { value: s }
             }

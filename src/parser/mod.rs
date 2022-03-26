@@ -8,13 +8,11 @@ use expr_parser::ExpressionParser;
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum VarType {
-    Int,
-    String,
-    Bool,
-    Real,
-    Error,
+#[derive(Debug, PartialEq, Clone)]
+pub struct VariableDeclaration {
+    id: String,
+    var_type: String,
+    arr: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -30,7 +28,7 @@ pub enum Statement {
     If { value: Expression, statement: Box<Statement> },
     IfElse { value: Expression, if_statement: Box<Statement>, else_statement: Box<Statement> },
     While { value: Expression, statement: Box<Statement> },
-    VarDeclaration { ids: Vec<String>, var_type: VarType },
+    VariableDeclaration { variables: Vec<VariableDeclaration> },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -68,9 +66,9 @@ pub enum Expression {
 pub enum AST {
     Error,
     Program { id: String, functions: Vec<AST>, procedures: Vec<AST>, main: Statement },
-    Procedure { parameters: Vec<AST>, block: Statement },
-    Function { parameters: Vec<AST>, block: Box<AST>, res_type: VarType },
-    Call { id: String, arguments: Vec<Expression> },
+    Procedure { id: String, parameters: Vec<VariableDeclaration>, block: Statement },
+    Function { id: String, parameters: Vec<VariableDeclaration>, block: Statement, res_type: String },
+    //Call { id: String, arguments: Vec<Expression> },
     Parameters,
     Parameter,
     SimpleType,
@@ -436,31 +434,86 @@ impl Parser {
         };
     }
 
-    fn read_statement(&mut self) -> Statement {
-        /*
-        <ReadStatement> ::= "read" "(" <Id> { "," <Id> } ")" ";"
-
-        TODO: This might be just a function that automatically
-              gets added if the user doesn't declare function
-              with the same name.
-         */
-        todo!();
-    }
-
-    fn write_statement(&mut self) -> Statement {
-        /*
-        <WriteStatement> ::= "writeln" "(" <Arguments> ")" ";"
-
-        TODO: Might be just a normal function: See read_statement()
-         */
-        todo!();
-    }
-
     fn var_declaration(&mut self) -> Statement {
         /*
         <VarDeclaration> ::= "var" <Id> { "," <Id> } ":" <Type> ";"
          */
-        todo!();
+        if !self.expect(Token::Var) {
+            return Statement::Error;
+        }
+
+        let mut ids = vec![];
+        let var_type;
+        let arr;
+
+        loop {
+            if let (Some(token), Some(position)) = self.peek() {
+                match token {
+                    Token::Comma => {
+                        self.pop(); // pop ,
+                        // Check that we have id next and add the name to ids
+                        if let (Some(t), Some(p)) = self.peek() {
+                            match t {
+                                Token::Variable { value } => {
+                                    ids.push(value.clone());
+                                }
+                                _ => {
+                                    self.parse_error(String::from("Expected identifier."));
+                                    return Statement::Error;
+                                }
+                            }
+                        }
+                    }
+                    _ => { break; }
+                }
+            } else { break; }
+        }
+
+        // All var ids are parsed so expect :
+        if !self.expect(Token::Colon) {
+            return Statement::Error;
+        }
+
+        // Check if next is brackets or just type
+        if let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::OpenBracket => {
+                    // Parses [<var id>]
+                    arr = true;
+                    self.pop(); // pop [
+
+                    if let (Some(Token::Variable { value }), Some(p)) = self.peek() {
+                        var_type = value.clone();
+                    } else {
+                        self.parse_error(String::from("Expected variable type."));
+                        return Statement::Error;
+                    }
+
+                    if !self.expect(Token::CloseBracket) {
+                        return Statement::Error;
+                    }
+                }
+                Token::Variable { value } => {
+                    arr = false;
+                    var_type = value.clone();
+                }
+                _ => {
+                    self.parse_error(String::from("Expected variable type."));
+                    return Statement::Error;
+                }
+            }
+        } else {
+            self.parse_error(String::from("Expected type identifier."));
+            return Statement::Error;
+        }
+
+        // Expect statement to end in ;
+        if !self.expect(Token::Semicolon) {
+            return Statement::Error;
+        } else {
+            // Everything is fine and we can return variable declarations
+            return Statement::Error;
+        }
     }
 
     fn call_or_assign(&mut self) -> Statement {
@@ -569,20 +622,193 @@ impl Parser {
 
     fn parse_function(&mut self) -> AST {
         /*
-        <Function> ::= "function" <Id> "(" <Parameters> ")" ";" <Block> ";"
+        <Function> ::= "function" <Id> "(" <Parameters> ")" ":" <Variable> ";" <Block> ";"
          */
-        todo!();
+        let id;
+        let parameters;
+        let res_type;
+        let block;
+
+        if !self.expect(Token::Function) {
+            return AST::Error;
+        }
+
+        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+            id = value.clone();
+            self.pop();
+        } else {
+            self.parse_error(String::from("Expected identifier."));
+            return AST::Error;
+        }
+
+        parameters = self.parameters();
+
+        if !self.expect(Token::Colon) {
+            return AST::Error;
+        }
+
+        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+            res_type = value.clone();
+            self.pop();
+        } else {
+            self.parse_error(String::from("Expected identifier."));
+            return AST::Error;
+        }
+
+        if !self.expect(Token::Semicolon) {
+            return AST::Error;
+        }
+
+        block = self.block();
+
+        if !self.expect(Token::Semicolon) {
+            return AST::Error;
+        } else {
+            return AST::Function {
+                id,
+                parameters,
+                res_type,
+                block,
+            };
+        }
     }
 
     fn parse_procedure(&mut self) -> AST {
         /*
         <Procedure> ::= "procedure" <Id> "(" <Parameters> ")" ";" <Block> ";"
          */
-        todo!();
+        let id;
+        let parameters;
+        let block;
+
+        if !self.expect(Token::Procedure) {
+            return AST::Error;
+        }
+
+        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+            id = value.clone();
+            self.pop();
+        } else {
+            self.parse_error(String::from("Expected identifier."));
+            return AST::Error;
+        }
+
+        parameters = self.parameters();
+
+        if !self.expect(Token::Semicolon) {
+            return AST::Error;
+        }
+
+        block = self.block();
+
+        return if !self.expect(Token::Semicolon) {
+            AST::Error
+        } else {
+            AST::Procedure {
+                id,
+                parameters,
+                block,
+            }
+        }
     }
 
-    fn parameters(&mut self) {
-        todo!();
+    fn parameters(&mut self) -> Vec<VariableDeclaration> {
+        let mut parameters = vec![];
+
+        if !self.expect(Token::OpenParen) {
+            return vec![];
+        }
+
+        loop {
+            if let (Some(token), Some(position)) = self.peek() {
+                match token {
+                    Token::Comma => {
+                        self.pop();
+                        let par = self.parameter();
+                        match par {
+                            Some(p) => {
+                                parameters.push(p);
+                            }
+                            None => {
+                                self.parse_error(String::from("Error while parsing parameter."));
+                            }
+                        }
+                    }
+                    Token::Variable { value } => {
+                        let par = self.parameter();
+                        match par {
+                            Some(p) => {
+                                parameters.push(p);
+                            }
+                            None => {
+                                self.parse_error(String::from("Error while parsing parameter."));
+                            }
+                        }
+                    }
+                    _ => {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if !self.expect(Token::CloseParen) {
+            return vec![];
+        }
+
+        parameters
+    }
+
+    fn parameter(&mut self) -> Option<VariableDeclaration> {
+        /*
+        Some(VariableDeclaration) if parameter is correct.
+        None if parameter is invalid.
+         */
+        let id;
+        let arr;
+        let var_type;
+
+        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+            id = value.clone();
+            self.pop();
+        } else {
+            return None;
+        }
+
+        if !self.expect(Token::Colon) {
+            return None;
+        }
+
+        // Check if is array type
+        if let (Some(Token::OpenBracket), Some(position)) = self.peek() {
+            arr = true;
+            self.pop();
+        } else {
+            arr = false;
+        }
+
+        // Get type
+        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+            var_type = value.clone();
+            self.pop();
+        } else {
+            return None;
+        }
+
+        // If arr check for closing brackets
+        if arr {
+            if !self.expect(Token::CloseBracket) {
+                return None;
+            }
+        }
+
+        Some(
+            VariableDeclaration {
+                id,
+                arr,
+                var_type,
+            }
+        )
     }
 
     fn id(&mut self) -> String {
@@ -743,12 +969,6 @@ impl Parser {
                 }
                 Token::RealLiteral { value } => {
                     expr_tokens.push(Expression::RealLiteral { value: value.clone() });
-                }
-                Token::True => {
-                    expr_tokens.push(Expression::BooleanLiteral { value: true });
-                }
-                Token::False => {
-                    expr_tokens.push(Expression::BooleanLiteral { value: false });
                 }
                 _ => {
                     // Found token that cannot be part of expression like ';'

@@ -3,8 +3,14 @@ program hello_function;
 function hello_from_function() : string;
 begin
   return "Hello, function!";
-end
+end;
+
+procedure hello_from_procedure();
+begin
+  writeln("Hello from procedure!");
+end;
 
 begin
   writeln(hello_from_function());
+  hello_from_procedure();
 end.
