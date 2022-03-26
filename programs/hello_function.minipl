@@ -1,0 +1,10 @@
+program hello_function;
+
+function hello_from_function() : string;
+begin
+  return "Hello, function!";
+end
+
+begin
+  writeln(hello_from_function());
+end.

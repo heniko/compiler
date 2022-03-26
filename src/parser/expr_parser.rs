@@ -205,6 +205,14 @@ impl ExpressionParser {
                 self.cursor.advance();
                 e.clone()
             }
+            Expression::RealLiteral {value:_} => {
+                self.cursor.advance();
+                e.clone()
+            }
+            Expression::Function {id:_, arguments:_} => {
+                self.cursor.advance();
+                e.clone()
+            }
             Expression::OpenParen => {
                 self.cursor.advance();
                 let expr = self.expression();

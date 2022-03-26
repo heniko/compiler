@@ -203,7 +203,6 @@ impl Scanner {
     }
 
     pub fn scan(&mut self) {
-        dbg!("Start scanning...");
         /*
         Goes trough the source code character by character. Confirmed single
         character tokens have value assigned instantly and (possible) multi character
@@ -236,7 +235,6 @@ impl Scanner {
                 ':' => { self.scan_colon() }
                 'A'..='Z' | 'a'..='z' => {
                     // A-Z|a-z
-                    dbg!("Scan variable...");
                     self.scan_variable()
                 }
                 '0'..='9' => { self.scan_number() } // 0-9
@@ -420,7 +418,6 @@ impl Scanner {
         }
 
         return Token::Unknown { value: s };
-        todo!();
     }
 
     fn scan_le(&mut self) -> Token {

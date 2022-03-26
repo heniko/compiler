@@ -70,7 +70,7 @@ pub enum AST {
     Program { id: String, functions: Vec<AST>, procedures: Vec<AST>, main: Statement },
     Procedure { parameters: Vec<AST>, block: Statement },
     Function { parameters: Vec<AST>, block: Box<AST>, res_type: VarType },
-    Call { parameter: Expression },
+    Call { id: String, arguments: Vec<Expression> },
     Parameters,
     Parameter,
     SimpleType,
@@ -224,10 +224,10 @@ impl Parser {
         while let (Some(token), Some(position)) = self.peek() {
             match token {
                 Token::Procedure => {
-                    todo!();
+                    procedures.push(self.parse_procedure());
                 }
                 Token::Function => {
-                    todo!();
+                    functions.push(self.parse_function());
                 }
                 _ => {
                     break;
@@ -610,7 +610,6 @@ impl Parser {
     }
 
     fn arguments(&mut self) -> Vec<Expression> {
-        dbg!("Hello from arguments");
         /*
         <Arguments> ::= "(" { <Expression> [","]} ")"
 
@@ -671,7 +670,6 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Expression {
-        dbg!("Hello from expression");
         /*
         Functionality:
          - Starting point for parsing any kind of expression
@@ -765,7 +763,6 @@ impl Parser {
     }
 
     fn variable_or_function_expression(&mut self) -> Expression {
-        dbg!("Hello from variable_or_function_expression");
         let id;
         if let (Some(Token::Variable { value }), Some(p)) = self.pop() {
             id = value;
