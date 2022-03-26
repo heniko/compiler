@@ -164,14 +164,14 @@ impl Parser {
         one and false if it is not.
          */
         if let (Some(token), Some(position)) = self.peek() {
-            if token.clone() == match_token {
+            return if token.clone() == match_token {
                 self.pop(); // Consume expected token
-                return true;
+                true
             } else {
                 let err_token = token.clone();
                 self.parse_error(format!("Expected token: {:?}, found token: {:?}.", match_token.clone(), err_token));
-                return false;
-            }
+                false
+            };
         }
 
         self.parse_error(String::from("Expected token."));
@@ -193,17 +193,9 @@ impl Parser {
         }
 
         // Get program identifier
-        if let (Some(token), Some(position)) = self.peek() {
-            match token {
-                Token::Variable { value } => {
-                    id = value.clone();
-                    self.pop();
-                }
-                _ => {
-                    self.parse_error(String::from("Expected identifier."));
-                    return AST::Error;
-                }
-            }
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
+            id = value.clone();
+            self.pop();
         } else {
             self.parse_error(String::from("Expected identifier."));
             return AST::Error;
@@ -260,34 +252,13 @@ impl Parser {
         // and call correct function to handle that case.
         return if let (Some(token), Some(position)) = self.peek() {
             match token {
-                Token::Begin => {
-                    dbg!("Parse begin");
-                    self.block()
-                }
-                Token::While => {
-                    dbg!("Parse while");
-                    self.while_statement()
-                }
-                Token::Return => {
-                    dbg!("parse return");
-                    self.return_statement()
-                }
-                Token::If => {
-                    dbg!("Parse if");
-                    self.if_statement()
-                }
-                Token::Assert => {
-                    dbg!("Parse assert");
-                    self.assert_statement()
-                }
-                Token::Var => {
-                    dbg!("Parse variable declaration");
-                    self.var_declaration()
-                }
-                Token::Variable { value: _ } => {
-                    dbg!("Parse assign or call");
-                    self.call_or_assign()
-                }
+                Token::Begin => { self.block() }
+                Token::While => { self.while_statement() }
+                Token::Return => { self.return_statement() }
+                Token::If => { self.if_statement() }
+                Token::Assert => { self.assert_statement() }
+                Token::Var => { self.var_declaration() }
+                Token::Variable { value: _ } => { self.call_or_assign() }
                 _ => {
                     // This is where we end up if expected statement but found
                     // something else
@@ -375,25 +346,20 @@ impl Parser {
 
         let statement = self.statement();
 
-        if let (Some(token), Some(_position)) = self.peek() {
-            match token {
-                Token::Else => {
-                    self.pop(); // pop Token::Else
-                    let else_statement = self.statement();
-                    return Statement::IfElse {
-                        value: expression,
-                        if_statement: Box::from(statement),
-                        else_statement: Box::from(else_statement),
-                    };
-                }
-                _ => { /* Do nothing */ }
+        return if let (Some(Token::Else), Some(_position)) = self.peek() {
+            self.pop();
+            let else_statement = self.statement();
+            Statement::IfElse {
+                value: expression,
+                if_statement: Box::from(statement),
+                else_statement: Box::from(else_statement),
             }
-        }
-
-        Statement::If {
-            value: expression,
-            statement: Box::from(statement),
-        }
+        } else {
+            Statement::If {
+                value: expression,
+                statement: Box::from(statement),
+            }
+        };
     }
 
     fn assert_statement(&mut self) -> Statement {
