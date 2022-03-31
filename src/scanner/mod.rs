@@ -205,6 +205,8 @@ impl Scanner {
         while let Some(c) = current {
             self.positions.push(self.cursor.get_position());
             let add = match c {
+                '[' => { Token::OpenBracket }
+                ']' => { Token::CloseBracket }
                 '(' => { Token::OpenParen }
                 ')' => { Token::CloseParen }
                 '=' => { Token::Eq }

@@ -73,7 +73,7 @@ impl ExpressionParser {
          */
         if self.cursor.is_end() {
             Expression::None
-        }else {
+        } else {
             self.and()
         }
     }
@@ -197,7 +197,7 @@ impl ExpressionParser {
                 self.cursor.advance();
                 e.clone()
             }
-            Expression::Variable { id: _ } => {
+            Expression::Variable { var: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
@@ -205,11 +205,11 @@ impl ExpressionParser {
                 self.cursor.advance();
                 e.clone()
             }
-            Expression::RealLiteral {value:_} => {
+            Expression::RealLiteral { value: _ } => {
                 self.cursor.advance();
                 e.clone()
             }
-            Expression::Function {id:_, arguments:_} => {
+            Expression::Function { id: _, arguments: _ } => {
                 self.cursor.advance();
                 e.clone()
             }

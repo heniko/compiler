@@ -9,16 +9,42 @@ use expr_parser::ExpressionParser;
 mod tests;
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum VariableType {
+    Error,
+    ArrayType {
+        var_type: String,
+        size: Expression,
+    },
+    SimpleType {
+        var_type: String
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum VariableAccess {
+    Error,
+    SimpleAccess {
+        id: String
+    },
+    ArrayAccess {
+        id: String,
+        index: i32,
+    },
+    SizeAccess {
+        id: String
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct VariableDeclaration {
     id: String,
-    var_type: String,
-    arr: bool,
+    var_type: VariableType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Error,
-    Assignment { id: String, value: Expression },
+    Assignment { var: VariableAccess, value: Expression },
     Call { id: String, arguments: Vec<Expression> },
     Return { value: Expression },
     Read { ids: Vec<String> },
@@ -54,7 +80,7 @@ pub enum Expression {
     RealLiteral { value: f32 },
     BooleanLiteral { value: bool },
     Function { id: String, arguments: Vec<Expression> },
-    Variable { id: String },
+    Variable { var: VariableAccess },
     OpenParen,
     CloseParen,
     Unary { op: Box<Expression>, value: Box<Expression> },
@@ -192,10 +218,8 @@ impl Parser {
             return AST::Error;
         }
 
-        // Get program identifier
-        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
-            id = value.clone();
-            self.pop();
+        if let (Some(identifier)) = self.identifier() {
+            id = identifier.clone();
         } else {
             self.parse_error(String::from("Expected identifier."));
             return AST::Error;
@@ -416,7 +440,7 @@ impl Parser {
             ids.push(value.clone());
             self.pop();
 
-            if let (Some(t), Some(_p)) = self.peek() {
+            if let (Some(_t), Some(_p)) = self.peek() {
                 /*
                 pop comma if there is one and check that there is
                 a variable next so for example
@@ -542,7 +566,22 @@ impl Parser {
         /*
         AssignStatement ::= <Id> ":=" <Expression> ";"
          */
-        todo!();
+        let var = self.parse_variable_access();
+
+        if !self.expect(Token::Assign) {
+            return Statement::Error;
+        }
+
+        let expr = self.expression();
+
+        if !self.expect(Token::Semicolon) {
+            return Statement::Error;
+        }
+
+        Statement::Assignment {
+            var,
+            value: expr,
+        }
     }
 
     fn return_statement(&mut self) -> Statement {
@@ -716,7 +755,6 @@ impl Parser {
         None if parameter is invalid.
          */
         let id;
-        let arr;
         let var_type;
 
         if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
@@ -730,39 +768,17 @@ impl Parser {
             return None;
         }
 
-        // Check if is array type
-        if let (Some(Token::OpenBracket), Some(position)) = self.peek() {
-            arr = true;
-            self.pop();
-        } else {
-            arr = false;
-        }
-
-        // Get type
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
-            var_type = value.clone();
-            self.pop();
-        } else {
-            return None;
-        }
-
-        // If arr check for closing brackets
-        if arr {
-            if !self.expect(Token::CloseBracket) {
-                return None;
-            }
-        }
+        var_type = self.parse_type();
 
         Some(
             VariableDeclaration {
                 id,
-                arr,
                 var_type,
             }
         )
     }
 
-    fn id(&mut self) -> String {
+    fn identifier(&mut self) -> Option<String> {
         /*
         <Id> ::= <Letter> { <Letter> | <Digit> | "_" }
         <Letter> ::= <Alphabetical character>
@@ -771,19 +787,13 @@ impl Parser {
         Checks that the next next token is Token::Variable
         and returns the string stored as identifier.
          */
-        if let (Some(token), Some(position)) = self.peek() {
-            match token {
-                Token::Variable { value } => {
-                    let res = value.clone();
-                    self.pop(); // pop Token::Variable
-                    return res;
-                }
-                _ => {}
-            }
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
+            let id = value.clone();
+            self.pop();
+            Some(id)
+        } else {
+            None
         }
-
-        self.parse_error(String::from("Expected identifier."));
-        String::new()
     }
 
     fn arguments(&mut self) -> Vec<Expression> {
@@ -934,12 +944,32 @@ impl Parser {
     }
 
     fn variable_or_function_expression(&mut self) -> Expression {
-        let id;
-        if let (Some(Token::Variable { value }), Some(_p)) = self.pop() {
-            id = value;
+        /*
+        <FunctionExpression> ::= <Identifier> "(" <Expression> {"," <Expression>} ")"
+        <VariableExpression> ::= <VariableAccess>
+         */
+
+        if let (Some(Token::OpenParen), Some(_position)) = self.next() {
+            // Function call
+            let id = self.identifier().unwrap();
+
+            Expression::Function {
+                id,
+                arguments: self.arguments(),
+            }
         } else {
-            // Should not happen but makes sure id is initialized
-            self.parse_error(String::from("Expected Token::Variable."));
+            // Variable access
+            Expression::Variable {
+                var: self.parse_variable_access()
+            }
+        }
+        /*
+        let id;
+
+        if let Some(identifier) = self.identifier() {
+            id = identifier;
+        } else {
+            self.parse_error(String::from("Expected identifier."));
             return Expression::Error;
         }
 
@@ -951,5 +981,97 @@ impl Parser {
         } else {
             Expression::Variable { id: id.clone() }
         };
+
+         */
+    }
+
+    fn parse_type(&mut self) -> VariableType {
+        /*
+        <Type> ::= <SimpleType> | <ArrayType>
+        <SimpleType> ::= <Identifier>
+        <ArrayType> ::= "array" "[" <Expression> "]" "of" <identifier>
+         */
+        let is_arr;
+        let arr_expr;
+        let var_type;
+
+        // Check if we are parsing simple or array type
+        if let (Some(Token::Array), Some(_position)) = self.peek() {
+            is_arr = true;
+            self.pop();
+        } else {
+            is_arr = false;
+        }
+
+        // Is array but next token isn't opening bracket
+        if is_arr && !self.expect(Token::OpenBracket) {
+            return VariableType::Error;
+        }
+
+        arr_expr = self.expression();
+
+        // Is array but next token isn't closing bracket
+        if is_arr && !self.expect(Token::CloseBracket) {
+            return VariableType::Error;
+        }
+
+        // Is array but next token isn't Token::Of
+        if is_arr && !self.expect(Token::Of) {
+            return VariableType::Error;
+        }
+
+        // Lastly get the variable type identifier
+        if let Some(identifier) = self.identifier() {
+            var_type = identifier;
+        } else {
+            self.parse_error(String::from("Expected identifier."));
+            return VariableType::Error;
+        }
+
+        if is_arr {
+            VariableType::ArrayType {
+                size: arr_expr,
+                var_type,
+            }
+        } else {
+            VariableType::SimpleType {
+                var_type
+            }
+        }
+    }
+
+    fn parse_variable_access(&mut self) -> VariableAccess {
+        /*
+        <VariableAccess> ::= <SimpleVariable> | <ArrayVariable> | <SizeVariable>
+        <SimpleVariable> ::= <Identifier>
+        <ArrayVariable> ::= <Identifier> "[" <Expression> "]"
+        <SizeVariable> ::= <Identifier> "." "size"
+         */
+        let id;
+
+        if let Some(identifier) = self.identifier() {
+            id = identifier;
+        } else {
+            self.parse_error(String::from("Expected identifier."));
+            return VariableAccess::Error;
+        }
+
+        if let (Some(token), Some(position)) = self.peek() {
+            match token {
+                Token::Dot => {
+                    todo!();
+                }
+                Token::OpenBracket => {
+                    todo!();
+                }
+                _ => {
+                    /* Not array or size so return SimpleAccess at end */
+                }
+            }
+        }
+
+        VariableAccess::SimpleAccess {
+            id
+        }
     }
 }
