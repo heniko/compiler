@@ -221,7 +221,7 @@ impl Parser {
         if let (Some(identifier)) = self.identifier() {
             id = identifier.clone();
         } else {
-            self.parse_error(String::from("Expected identifier."));
+            self.parse_error(String::from("Expected identifier. [program()]"));
             return AST::Error;
         }
 
@@ -249,19 +249,13 @@ impl Parser {
             }
         }
 
-        main_block = self.block();
+        main_block = self.main_block();
 
-        if !self.expect(Token::Dot) {
-            // No expected dot at the end of the program
-            AST::Error
-        } else {
-            // All is fine and we can return the program
-            AST::Program {
-                id,
-                procedures,
-                functions,
-                main: main_block,
-            }
+        AST::Program {
+            id,
+            procedures,
+            functions,
+            main: main_block,
         }
     }
 
@@ -286,13 +280,13 @@ impl Parser {
                 _ => {
                     // This is where we end up if expected statement but found
                     // something else
-                    self.parse_error(String::from("Expected statement."));
+                    self.parse_error(String::from("Expected statement. [statement(), unknown token]"));
                     Statement::Error
                 }
             }
         } else {
             // This is where we end up if we expected statement but found EOF
-            self.parse_error(String::from("Expected statement."));
+            self.parse_error(String::from("Expected statement. [statement(), EOF]"));
             Statement::Error
         };
     }
@@ -315,22 +309,60 @@ impl Parser {
         // Parse statements until we find one starting with Token::End.
         // Use statements() to reduce code duplication.
         while let (Some(token), Some(position)) = self.peek() {
-            match token {
-                Token::End => {
-                    // Found end of the block
-                    self.pop(); // pop Token::End
-                    return Statement::Block { statements };
-                }
-                _ => {
-                    // Try parsing another statement
-                    statements.push(self.statement());
-                }
+            if let (Some(Token::End), Some(p)) = self.peek() {
+                break;
+            } else {
+                statements.push(self.statement());
             }
         }
 
-        // EOF before Token::End
-        self.expect(Token::End);
-        return Statement::Error;
+        if !self.expect(Token::End) {
+            return Statement::Error;
+        }
+
+        if !self.expect(Token::Semicolon) {
+            return Statement::Error;
+        }
+
+        Statement::Block {
+            statements
+        }
+    }
+
+    fn main_block(&mut self) -> Statement {
+        /*
+        The difference here is that this one
+        ends in '.' instead of ';'
+         */
+        if !self.expect(Token::Begin) {
+            return Statement::Error;
+        }
+
+        let mut statements = vec![];
+
+        // Parse statements until we find one starting with Token::End.
+        // Use statements() to reduce code duplication.
+        while let (Some(token), Some(position)) = self.peek() {
+            if let (Some(Token::End), Some(p)) = self.peek() {
+                break;
+            } else {
+                statements.push(self.statement());
+            }
+        }
+
+        if !self.expect(Token::End) {
+            return Statement::Error;
+        }
+
+        if !self.expect(Token::Dot) {
+            return Statement::Error;
+        }
+
+        // We can use the same block type since the contents
+        // of the main block and normal block are same.
+        Statement::Block {
+            statements
+        }
     }
 
     fn while_statement(&mut self) -> Statement {
@@ -416,7 +448,7 @@ impl Parser {
         } else {
             self.errors.push(
                 ParserError {
-                    message: String::from("Assert can only take one argument."),
+                    message: String::from("Assert can only take one argument. [assert_statement()]"),
                     position: None,
                 }
             );
@@ -434,13 +466,12 @@ impl Parser {
 
         let mut ids = vec![];
         let var_type;
-        let arr;
 
         while let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             ids.push(value.clone());
             self.pop();
 
-            if let (Some(_t), Some(_p)) = self.peek() {
+            if let (Some(Token::Comma), Some(_p)) = self.peek() {
                 /*
                 pop comma if there is one and check that there is
                 a variable next so for example
@@ -453,7 +484,7 @@ impl Parser {
                 if let (Some(Token::Variable { value: _ }), Some(_p)) = self.peek() {
                     /* Do nothing */
                 } else {
-                    self.parse_error(String::from("Expected identifier."));
+                    self.parse_error(String::from("Expected identifier. [var_declaration(), id exists after comma]"));
                     return Statement::Error;
                 }
             }
@@ -464,45 +495,19 @@ impl Parser {
             return Statement::Error;
         }
 
-        // Check if next is brackets or just type
-        if let (Some(token), Some(position)) = self.peek() {
-            match token {
-                Token::OpenBracket => {
-                    // Parses [<var id>]
-                    arr = true;
-                    self.pop(); // pop [
-
-                    if let (Some(Token::Variable { value }), Some(p)) = self.peek() {
-                        var_type = value.clone();
-                    } else {
-                        self.parse_error(String::from("Expected variable type."));
-                        return Statement::Error;
-                    }
-
-                    if !self.expect(Token::CloseBracket) {
-                        return Statement::Error;
-                    }
-                }
-                Token::Variable { value } => {
-                    arr = false;
-                    var_type = value.clone();
-                }
-                _ => {
-                    self.parse_error(String::from("Expected variable type."));
-                    return Statement::Error;
-                }
-            }
-        } else {
-            self.parse_error(String::from("Expected type identifier."));
-            return Statement::Error;
-        }
+        var_type = self.parse_type();
 
         // Expect statement to end in ;
         return if !self.expect(Token::Semicolon) {
             Statement::Error
         } else {
             // Everything is fine and we can return variable declarations
-            Statement::Error
+            Statement::VariableDeclaration {
+                variables: ids
+                    .iter()
+                    .map(|x| VariableDeclaration { id: x.clone(), var_type: var_type.clone() })
+                    .collect()
+            }
         };
     }
 
@@ -521,13 +526,13 @@ impl Parser {
                 }
                 _ => {
                     // Not assign or call so we don't know what it is
-                    self.parse_error(String::from("Expected ':=' or '('."));
+                    self.parse_error(String::from("Expected ':=' or '('. [call_or_assign()]."));
                     Statement::Error
                 }
             };
         } else {
             // EOF
-            self.parse_error(String::from("Expected ':=' or '('."));
+            self.parse_error(String::from("Expected ':=' or '('. [call_or_assign()]."));
             Statement::Error
         };
     }
@@ -544,7 +549,7 @@ impl Parser {
             id = value.clone();
             self.pop();
         } else {
-            self.parse_error(String::from(""));
+            self.parse_error(String::from("Expected identifier. [call()]"));
             return Statement::Error;
         }
 
@@ -622,7 +627,7 @@ impl Parser {
             id = value.clone();
             self.pop();
         } else {
-            self.parse_error(String::from("Expected identifier."));
+            self.parse_error(String::from("Expected identifier. [parse_function(), function id]"));
             return AST::Error;
         }
 
@@ -636,7 +641,7 @@ impl Parser {
             res_type = value.clone();
             self.pop();
         } else {
-            self.parse_error(String::from("Expected identifier."));
+            self.parse_error(String::from("Expected identifier. [parse_function()]"));
             return AST::Error;
         }
 
@@ -646,16 +651,12 @@ impl Parser {
 
         block = self.block();
 
-        return if !self.expect(Token::Semicolon) {
-            AST::Error
-        } else {
-            AST::Function {
-                id,
-                parameters,
-                res_type,
-                block,
-            }
-        };
+        AST::Function {
+            id,
+            parameters,
+            res_type,
+            block,
+        }
     }
 
     fn parse_procedure(&mut self) -> AST {
@@ -674,7 +675,7 @@ impl Parser {
             id = value.clone();
             self.pop();
         } else {
-            self.parse_error(String::from("Expected identifier."));
+            self.parse_error(String::from("Expected identifier. [parse_procedure()]"));
             return AST::Error;
         }
 
@@ -686,15 +687,11 @@ impl Parser {
 
         block = self.block();
 
-        return if !self.expect(Token::Semicolon) {
-            AST::Error
-        } else {
-            AST::Procedure {
-                id,
-                parameters,
-                block,
-            }
-        };
+        AST::Procedure {
+            id,
+            parameters,
+            block,
+        }
     }
 
     fn parameters(&mut self) -> Vec<VariableDeclaration> {
@@ -705,7 +702,7 @@ impl Parser {
         }
 
         if let (Some(Token::Comma), Some(_position)) = self.peek() {
-            self.parse_error(String::from("Expected parameter."));
+            self.parse_error(String::from("Expected parameter. [parameters()]"));
             return vec![];
         }
 
@@ -736,7 +733,7 @@ impl Parser {
                         parameters.push(p);
                     }
                     None => {
-                        self.parse_error(String::from("Error while parsing parameters."));
+                        self.parse_error(String::from("Error while parsing parameters. [parameters()]"));
                     }
                 }
             }
@@ -792,6 +789,7 @@ impl Parser {
             self.pop();
             Some(id)
         } else {
+            dbg!(self.peek().clone());
             None
         }
     }
@@ -992,7 +990,7 @@ impl Parser {
         <ArrayType> ::= "array" "[" <Expression> "]" "of" <identifier>
          */
         let is_arr;
-        let arr_expr;
+        let mut arr_expr = Expression::Error;
         let var_type;
 
         // Check if we are parsing simple or array type
@@ -1008,7 +1006,10 @@ impl Parser {
             return VariableType::Error;
         }
 
-        arr_expr = self.expression();
+        // If is array then expect expression here to tell the size
+        if is_arr {
+            arr_expr = self.expression();
+        }
 
         // Is array but next token isn't closing bracket
         if is_arr && !self.expect(Token::CloseBracket) {
@@ -1024,7 +1025,7 @@ impl Parser {
         if let Some(identifier) = self.identifier() {
             var_type = identifier;
         } else {
-            self.parse_error(String::from("Expected identifier."));
+            self.parse_error(String::from("Expected identifier. [parse_type(), var_type identifier]"));
             return VariableType::Error;
         }
 
@@ -1052,7 +1053,7 @@ impl Parser {
         if let Some(identifier) = self.identifier() {
             id = identifier;
         } else {
-            self.parse_error(String::from("Expected identifier."));
+            self.parse_error(String::from("Expected identifier. [parse_variable_access(), variable identifier]"));
             return VariableAccess::Error;
         }
 

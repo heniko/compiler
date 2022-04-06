@@ -1,6 +1,6 @@
 program GCD;
 begin
-var i, j : integer;
+ var i, j : integer;
  read (i, j);
  while i <> j do
  if i > j then i := i - j;

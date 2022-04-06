@@ -14,7 +14,7 @@ fn main() {
     let mut io = UserIO::from();
     println!("Source code location:");
     //let path = io.read();
-    let path = String::from("programs/gcd.minipl");
+    let path = String::from("programs/swap_and_sum_them.minipl");
     let source = read_file(path.as_str());
 
     dbg!(source.clone());
