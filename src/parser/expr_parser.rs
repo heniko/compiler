@@ -195,23 +195,23 @@ impl ExpressionParser {
         return match ex {
             Expression::IntegerLiteral { value: _ } => {
                 self.cursor.advance();
-                e.clone()
+                e
             }
             Expression::Variable { var: _ } => {
                 self.cursor.advance();
-                e.clone()
+                e
             }
             Expression::StringLiteral { value: _ } => {
                 self.cursor.advance();
-                e.clone()
+                e
             }
             Expression::RealLiteral { value: _ } => {
                 self.cursor.advance();
-                e.clone()
+                e
             }
             Expression::Function { id: _, arguments: _ } => {
                 self.cursor.advance();
-                e.clone()
+                e
             }
             Expression::OpenParen => {
                 self.cursor.advance();

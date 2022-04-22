@@ -26,9 +26,13 @@ pub enum VariableAccess {
     SimpleAccess {
         id: String
     },
+    /*
+    Expression may contain variable accesses
+    so the expression needs to be boxed.
+     */
     ArrayAccess {
         id: String,
-        index: i32,
+        index: Box<Expression>,
     },
     SizeAccess {
         id: String
@@ -695,6 +699,10 @@ impl Parser {
     }
 
     fn parameters(&mut self) -> Vec<VariableDeclaration> {
+        /*
+        TODO: Look at how this function works and maybe refactor
+              since it caused an infinite loop before!
+         */
         let mut parameters = vec![];
 
         if !self.expect(Token::OpenParen) {
@@ -736,6 +744,9 @@ impl Parser {
                         self.parse_error(String::from("Error while parsing parameters. [parameters()]"));
                     }
                 }
+            } else {
+                // Break if None
+                break;
             }
         }
 
@@ -753,6 +764,10 @@ impl Parser {
          */
         let id;
         let var_type;
+
+        if let (Some(Token::Var), Some(position)) = self.peek() {
+            self.pop();
+        }
 
         if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
             id = value.clone();
@@ -789,7 +804,6 @@ impl Parser {
             self.pop();
             Some(id)
         } else {
-            dbg!(self.peek().clone());
             None
         }
     }
@@ -938,7 +952,8 @@ impl Parser {
         }
 
         let mut expression_parser = ExpressionParser::from(&expr_tokens);
-        expression_parser.expression()
+        let res = expression_parser.expression();
+        res
     }
 
     fn variable_or_function_expression(&mut self) -> Expression {
@@ -961,26 +976,6 @@ impl Parser {
                 var: self.parse_variable_access()
             }
         }
-        /*
-        let id;
-
-        if let Some(identifier) = self.identifier() {
-            id = identifier;
-        } else {
-            self.parse_error(String::from("Expected identifier."));
-            return Expression::Error;
-        }
-
-        return if let (Some(Token::OpenParen), Some(_position)) = self.peek() {
-            Expression::Function {
-                id: id.clone(),
-                arguments: self.arguments(),
-            }
-        } else {
-            Expression::Variable { id: id.clone() }
-        };
-
-         */
     }
 
     fn parse_type(&mut self) -> VariableType {
@@ -1057,13 +1052,45 @@ impl Parser {
             return VariableAccess::Error;
         }
 
-        if let (Some(token), Some(position)) = self.peek() {
+        if let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::Dot => {
-                    todo!();
+                    /*
+                    Since the only case where we get some property
+                    of a variable is size we can simply check that
+                    the next token is variable containing word 'size'
+                    and return the SizeAccess is that is the case and
+                    otherwise an error.
+
+                    In the semantic analysis phase we need to also check
+                    that size isn't overwritten in the scope.
+                     */
+                    self.pop();
+
+                    if let Some(identifier) = self.identifier() {
+                        if identifier.as_str() == "size" {
+                            return VariableAccess::SizeAccess {
+                                id
+                            };
+                        }
+                    }
+
+                    self.parse_error(String::from("Expected identifier 'size'. [parse_variable_access()]"));
+                    return VariableAccess::Error;
                 }
                 Token::OpenBracket => {
-                    todo!();
+                    self.pop();
+
+                    let expr = self.expression();
+
+                    return if self.expect(Token::CloseBracket) {
+                        VariableAccess::ArrayAccess {
+                            id,
+                            index: Box::from(expr),
+                        }
+                    } else {
+                        VariableAccess::Error
+                    };
                 }
                 _ => {
                     /* Not array or size so return SimpleAccess at end */
