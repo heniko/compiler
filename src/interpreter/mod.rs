@@ -1,7 +1,7 @@
-use std::borrow::Borrow;
+use crate::io::IO;
 use crate::parser::{Expr, Tree, VarType};
+use std::borrow::Borrow;
 use std::collections::{HashMap, VecDeque};
-use crate::io::{IO};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Variable {
@@ -55,7 +55,10 @@ impl Interpreter {
             }
         }
 
-        self.scopes.back_mut().unwrap().insert(id.clone(), var.clone());
+        self.scopes
+            .back_mut()
+            .unwrap()
+            .insert(id.clone(), var.clone());
         var.clone()
     }
 
@@ -92,12 +95,8 @@ impl Interpreter {
 
     fn evaluate(&mut self, expression: &Tree) -> Variable {
         match expression {
-            Tree::Expr { value } => {
-                self.eval(&value)
-            }
-            _ => {
-                Variable::Error
-            }
+            Tree::Expr { value } => self.eval(&value),
+            _ => Variable::Error,
         }
     }
 
@@ -132,115 +131,103 @@ impl Interpreter {
                                 Variable::Number { value: v1 + v2 }
                             }
                             (Variable::String { value: s1 }, Variable::String { value: s2 }) => {
-                                Variable::String { value: format!("{}{}", s1, s2) }
+                                Variable::String {
+                                    value: format!("{}{}", s1, s2),
+                                }
                             }
                             (Variable::String { value: s }, Variable::Number { value: n }) => {
-                                Variable::String { value: format!("{}{}", s, n) }
+                                Variable::String {
+                                    value: format!("{}{}", s, n),
+                                }
                             }
                             (Variable::String { value: s }, Variable::Bool { value: b }) => {
-                                Variable::String { value: format!("{}{}", s, b) }
+                                Variable::String {
+                                    value: format!("{}{}", s, b),
+                                }
                             }
-                            _ => { Variable::Error }
+                            _ => Variable::Error,
                         }
                     }
-                    Expr::Minus => {
-                        match t {
-                            (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
-                                Variable::Number { value: n1 - n2 }
-                            }
-                            _ => { Variable::Error }
+                    Expr::Minus => match t {
+                        (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
+                            Variable::Number { value: n1 - n2 }
                         }
-                    }
-                    Expr::Mul => {
-                        match t {
-                            (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
-                                Variable::Number { value: n1 * n2 }
-                            }
-                            _ => { Variable::Error }
+                        _ => Variable::Error,
+                    },
+                    Expr::Mul => match t {
+                        (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
+                            Variable::Number { value: n1 * n2 }
                         }
-                    }
-                    Expr::Div => {
-                        match t {
-                            (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
-                                Variable::Number { value: n1 / n2 }
-                            }
-                            _ => { Variable::Error }
+                        _ => Variable::Error,
+                    },
+                    Expr::Div => match t {
+                        (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
+                            Variable::Number { value: n1 / n2 }
                         }
-                    }
-                    Expr::And => {
-                        match t {
-                            (Variable::Bool { value: b1 }, Variable::Bool { value: b2 }) => {
-                                Variable::Bool { value: b1 && b2 }
-                            }
-                            _ => { Variable::Error }
+                        _ => Variable::Error,
+                    },
+                    Expr::And => match t {
+                        (Variable::Bool { value: b1 }, Variable::Bool { value: b2 }) => {
+                            Variable::Bool { value: b1 && b2 }
                         }
-                    }
-                    Expr::Less => {
-                        match t {
-                            (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
-                                Variable::Bool { value: n1 < n2 }
-                            }
-                            _ => { Variable::Error }
+                        _ => Variable::Error,
+                    },
+                    Expr::Less => match t {
+                        (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
+                            Variable::Bool { value: n1 < n2 }
                         }
-                    }
-                    Expr::Eq => {
-                        match t {
-                            (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
-                                Variable::Bool { value: n1 == n2 }
-                            }
-                            (Variable::Bool { value: b1 }, Variable::Bool { value: b2 }) => {
-                                Variable::Bool { value: b1 == b2 }
-                            }
-                            (Variable::String { value: s1 }, Variable::String { value: s2 }) => {
-                                Variable::Bool { value: s1 == s2 }
-                            }
-                            _ => { Variable::Error }
+                        _ => Variable::Error,
+                    },
+                    Expr::Eq => match t {
+                        (Variable::Number { value: n1 }, Variable::Number { value: n2 }) => {
+                            Variable::Bool { value: n1 == n2 }
                         }
-                    }
-                    _ => {
-                        Variable::Error
-                    }
+                        (Variable::Bool { value: b1 }, Variable::Bool { value: b2 }) => {
+                            Variable::Bool { value: b1 == b2 }
+                        }
+                        (Variable::String { value: s1 }, Variable::String { value: s2 }) => {
+                            Variable::Bool { value: s1 == s2 }
+                        }
+                        _ => Variable::Error,
+                    },
+                    _ => Variable::Error,
                 };
             }
             Expr::Number { value } => {
-                return Variable::Number { value: value.clone() };
+                return Variable::Number {
+                    value: value.clone(),
+                };
             }
             Expr::Bool { value } => {
-                return Variable::Bool { value: value.clone() };
+                return Variable::Bool {
+                    value: value.clone(),
+                };
             }
-            Expr::String { value } => {
-                Variable::String { value: value.clone() }
-            }
+            Expr::String { value } => Variable::String {
+                value: value.clone(),
+            },
             Expr::Variable { value } => {
                 return self.get_var(value.clone());
             }
-            Expr::Group { value } => {
-                self.eval(value.borrow())
-            }
+            Expr::Group { value } => self.eval(value.borrow()),
             Expr::Unary { value, op } => {
                 let v = self.eval(value.borrow());
 
                 match op.borrow() {
-                    Expr::Minus => {
-                        match v {
-                            Variable::Number { value } => {
-                                Variable::Number { value: -value }
-                            }
-                            _ => { Variable::Error }
-                        }
-                    }
-                    Expr::Not => {
-                        match v {
-                            Variable::Bool { value } => {
-                                Variable::Bool { value: !value }
-                            }
-                            _ => { Variable::Error }
-                        }
-                    }
-                    _ => { Variable::Error }
+                    Expr::Minus => match v {
+                        Variable::Number { value } => Variable::Number { value: -value },
+                        _ => Variable::Error,
+                    },
+                    Expr::Not => match v {
+                        Variable::Bool { value } => Variable::Bool { value: !value },
+                        _ => Variable::Error,
+                    },
+                    _ => Variable::Error,
                 }
             }
-            _ => { return Variable::Error; }
+            _ => {
+                return Variable::Error;
+            }
         }
     }
 
@@ -255,7 +242,12 @@ impl Interpreter {
             Tree::Statements { value } => {
                 for stmt in value.iter() {
                     match stmt {
-                        Tree::For { var, start, end, statements } => {
+                        Tree::For {
+                            var,
+                            start,
+                            end,
+                            statements,
+                        } => {
                             /*
                             In the loop we want to know the starting value,
                             ending value, direction and variable name.
@@ -264,18 +256,14 @@ impl Interpreter {
                             let end_val = self.evaluate(end.borrow());
 
                             let start_val_int = match start_val {
-                                Variable::Number { value } => {
-                                    value.clone()
-                                }
+                                Variable::Number { value } => value.clone(),
                                 _ => {
                                     panic!("For loop start expression was not integer!");
                                 }
                             };
 
                             let end_val_int = match end_val {
-                                Variable::Number { value } => {
-                                    value.clone()
-                                }
+                                Variable::Number { value } => value.clone(),
                                 _ => {
                                     panic!("For loop start expression was not integer!");
                                 }
@@ -292,7 +280,10 @@ impl Interpreter {
                                     match self.get_var(var.clone()) {
                                         Variable::Number { value } => {
                                             iter = value + 1;
-                                            self.assign_var(var.clone(), Variable::Number { value: iter });
+                                            self.assign_var(
+                                                var.clone(),
+                                                Variable::Number { value: iter },
+                                            );
                                         }
                                         _ => {
                                             panic!("Should not happen!");
@@ -307,7 +298,10 @@ impl Interpreter {
                                     match self.get_var(var.clone()) {
                                         Variable::Number { value } => {
                                             iter = value - 1;
-                                            self.assign_var(var.clone(), Variable::Number { value: iter });
+                                            self.assign_var(
+                                                var.clone(),
+                                                Variable::Number { value: iter },
+                                            );
                                         }
                                         _ => {
                                             panic!("Should not happen!");
@@ -322,7 +316,11 @@ impl Interpreter {
                                  */
                             }
                         }
-                        Tree::Var { value, var_type, name } => {
+                        Tree::Var {
+                            value,
+                            var_type,
+                            name,
+                        } => {
                             let variable = self.evaluate(value.borrow());
                             // Check that var_type matches variable type
                             match variable.clone() {
@@ -330,21 +328,27 @@ impl Interpreter {
                                     if var_type == &VarType::Int {
                                         self.init_var(name.clone(), variable);
                                     } else {
-                                        panic!("Variable type and expression evaluation didn't match!");
+                                        panic!(
+                                            "Variable type and expression evaluation didn't match!"
+                                        );
                                     }
                                 }
                                 Variable::Bool { value: _ } => {
                                     if var_type == &VarType::Bool {
                                         self.init_var(name.clone(), variable);
                                     } else {
-                                        panic!("Variable type and expression evaluation didn't match!");
+                                        panic!(
+                                            "Variable type and expression evaluation didn't match!"
+                                        );
                                     }
                                 }
                                 Variable::String { value: _ } => {
                                     if var_type == &VarType::String {
                                         self.init_var(name.clone(), variable);
                                     } else {
-                                        panic!("Variable type and expression evaluation didn't match!");
+                                        panic!(
+                                            "Variable type and expression evaluation didn't match!"
+                                        );
                                     }
                                 }
                                 Variable::Error => {
@@ -376,7 +380,9 @@ impl Interpreter {
                                 Variable::Bool { value } => {
                                     println!("Assert: {}.", value);
                                 }
-                                _ => { panic!("Assert didn't receive expected type of boolean!"); }
+                                _ => {
+                                    panic!("Assert didn't receive expected type of boolean!");
+                                }
                             }
                         }
                         Tree::Assign { var, value } => {
@@ -388,10 +394,16 @@ impl Interpreter {
                                 (Variable::Bool { value: _v1 }, Variable::Bool { value: _v2 }) => {
                                     self.assign_var(var.clone(), e);
                                 }
-                                (Variable::String { value: _v1 }, Variable::String { value: _v2 }) => {
+                                (
+                                    Variable::String { value: _v1 },
+                                    Variable::String { value: _v2 },
+                                ) => {
                                     self.assign_var(var.clone(), e);
                                 }
-                                (Variable::Number { value: _v1 }, Variable::Number { value: _v2 }) => {
+                                (
+                                    Variable::Number { value: _v1 },
+                                    Variable::Number { value: _v2 },
+                                ) => {
                                     self.assign_var(var.clone(), e);
                                 }
                                 _ => {
@@ -408,9 +420,16 @@ impl Interpreter {
                                     self.assign_var(var.clone(), Variable::String { value: input });
                                 }
                                 Variable::Number { value: _ } => {
-                                    self.assign_var(var.clone(), Variable::Number { value: input.parse().unwrap() });
+                                    self.assign_var(
+                                        var.clone(),
+                                        Variable::Number {
+                                            value: input.parse().unwrap(),
+                                        },
+                                    );
                                 }
-                                _ => { panic!("Unable to assign read variable."); }
+                                _ => {
+                                    panic!("Unable to assign read variable.");
+                                }
                             }
                         }
                         _ => {

@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TokenPosition {
     pub line: usize,
@@ -102,20 +99,25 @@ struct Cursor {
 
 impl Cursor {
     fn from(source: &String) -> Cursor {
-        Cursor { source: source.chars().collect(), index: 0, line: 1, char: 1 }
+        Cursor {
+            source: source.chars().collect(),
+            index: 0,
+            line: 1,
+            char: 1,
+        }
     }
 
     fn peek(&mut self) -> Option<char> {
         return match self.source.get(self.index) {
-            Some(c) => { Some(c.clone()) }
-            None => { None }
+            Some(c) => Some(c.clone()),
+            None => None,
         };
     }
 
     fn next(&mut self) -> Option<char> {
         match self.source.get(self.index + 1) {
-            Some(c) => { Some(c.clone()) }
-            None => { None }
+            Some(c) => Some(c.clone()),
+            None => None,
         }
     }
 
@@ -205,33 +207,36 @@ impl Scanner {
         while let Some(c) = current {
             self.positions.push(self.cursor.get_position());
             let add = match c {
-                '[' => { Token::OpenBracket }
-                ']' => { Token::CloseBracket }
-                '(' => { Token::OpenParen }
-                ')' => { Token::CloseParen }
-                '=' => { Token::Eq }
-                '+' => { Token::Plus }
-                '-' => { Token::Minus }
-                '*' => { Token::Multiply }
-                '%' => { Token::Modulo }
-                ',' => { Token::Comma }
-                '/' => { self.scan_forward_slash() }
-                '<' => { self.scan_le() }
-                '>' => { self.scan_ge() }
-                '.' => { Token::Dot }
-                ';' => { Token::Semicolon }
-                '{' => { self.scan_multiline_comment() }
-                ':' => { self.scan_colon() }
+                '[' => Token::OpenBracket,
+                ']' => Token::CloseBracket,
+                '(' => Token::OpenParen,
+                ')' => Token::CloseParen,
+                '=' => Token::Eq,
+                '+' => Token::Plus,
+                '-' => Token::Minus,
+                '*' => Token::Multiply,
+                '%' => Token::Modulo,
+                ',' => Token::Comma,
+                '/' => self.scan_forward_slash(),
+                '<' => self.scan_le(),
+                '>' => self.scan_ge(),
+                '.' => Token::Dot,
+                ';' => Token::Semicolon,
+                '{' => self.scan_multiline_comment(),
+                ':' => self.scan_colon(),
                 'A'..='Z' | 'a'..='z' => {
                     // A-Z|a-z
                     self.scan_variable()
                 }
-                '0'..='9' => { self.scan_number() } // 0-9
+                '0'..='9' => self.scan_number(), // 0-9
                 //'.' => { self.scan_dot() }
-                '"' => { self.scan_string() }
-                ' ' | '\n' | '\r' | '\t' => { Token::Whitespace }
-                _ => { // All other characters that are not recognized.
-                    Token::Unknown { value: String::from(format!("Unrecognized character: {:?}", c)) }
+                '"' => self.scan_string(),
+                ' ' | '\n' | '\r' | '\t' => Token::Whitespace,
+                _ => {
+                    // All other characters that are not recognized.
+                    Token::Unknown {
+                        value: String::from(format!("Unrecognized character: {:?}", c)),
+                    }
                 }
             };
 
@@ -259,22 +264,26 @@ impl Scanner {
              */
             if c == '\n' {
                 return Token::Unknown {
-                    value: String::from(format!("String literal missing ending quotation mark: {}", s))
+                    value: String::from(format!(
+                        "String literal missing ending quotation mark: {}",
+                        s
+                    )),
                 };
             } else if c == '\\' {
-                if let Some(ch) = self.cursor.next() { // There is a character after escape character
+                if let Some(ch) = self.cursor.next() {
+                    // There is a character after escape character
                     /*
                     This needs to make sure that the escaped character actually exists.
                     Not all special characters are handled but this should be enough
                     to cover all use cases.
                      */
                     let c_to_add = match ch {
-                        'n' => { '\n' }  // New line
-                        '"' => { '\"' }  // Quotation mark
-                        '\\' => { '\\' } // Backslash
-                        'r' => { '\r' }  // Carriage return
-                        't' => { '\t' }  // Tab
-                        _ => { '?' }     // Unknown escaped character
+                        'n' => '\n',  // New line
+                        '"' => '\"',  // Quotation mark
+                        '\\' => '\\', // Backslash
+                        'r' => '\r',  // Carriage return
+                        't' => '\t',  // Tab
+                        _ => '?',     // Unknown escaped character
                     };
                     if (c_to_add) == '?' {
                         /*
@@ -287,13 +296,18 @@ impl Scanner {
                         self.cursor.inc();
                         s.push(self.cursor.peek().unwrap());
                         return Token::Unknown {
-                            value: String::from(format!("Unknown escaped character in string literal: {}", s))
+                            value: String::from(format!(
+                                "Unknown escaped character in string literal: {}",
+                                s
+                            )),
                         };
-                    } else { // Escaped character was recognized and converted
+                    } else {
+                        // Escaped character was recognized and converted
                         self.cursor.inc();
                         s.push(c_to_add)
                     }
-                } else { // EOF after escape character
+                } else {
+                    // EOF after escape character
                     s.push(c);
                     return Token::Unknown {
                         value: format!("String literal missing escaped character and ending quotation mark: {}", s)
@@ -316,7 +330,10 @@ impl Scanner {
         // Case EOF without closing '"'
         if let None = current {
             return Token::Unknown {
-                value: String::from(format!("String literal missing ending quotation mark: {:?}", s))
+                value: String::from(format!(
+                    "String literal missing ending quotation mark: {:?}",
+                    s
+                )),
             };
         }
 
@@ -368,7 +385,7 @@ impl Scanner {
                     }
                     Token::Comment
                 }
-                _ => { Token::Divide }
+                _ => Token::Divide,
             };
         } else {
             // Since peek() is '/' and next() None we must return Divide token.
@@ -412,9 +429,9 @@ impl Scanner {
     fn scan_le(&mut self) -> Token {
         return if let Some(c) = self.cursor.next() {
             match c {
-                '>' => { Token::Inequality }
-                '=' => { Token::Leq }
-                _ => { Token::Le }
+                '>' => Token::Inequality,
+                '=' => Token::Leq,
+                _ => Token::Le,
             }
         } else {
             Token::Le
@@ -424,8 +441,8 @@ impl Scanner {
     fn scan_ge(&mut self) -> Token {
         return if let Some(c) = self.cursor.next() {
             match c {
-                '=' => { Token::Geq }
-                _ => { Token::Ge }
+                '=' => Token::Geq,
+                _ => Token::Ge,
             }
         } else {
             Token::Ge
@@ -445,9 +462,9 @@ impl Scanner {
 
         while let Some(c) = self.cursor.next() {
             let add = match c {
-                '0'..='9' => { c }
-                'A'..='Z' | 'a'..='z' => { '?' }
-                _ => { '!' }
+                '0'..='9' => c,
+                'A'..='Z' | 'a'..='z' => '?',
+                _ => '!',
             };
 
             if add == '?' {
@@ -456,7 +473,8 @@ impl Scanner {
                 Handled by finding next non numerical and non alphabetical
                 character for scan() to continue from.
                  */
-                while let Some(ec) = self.cursor.next() { // Also handles EOF.
+                while let Some(ec) = self.cursor.next() {
+                    // Also handles EOF.
                     if ec.is_alphanumeric() {
                         s.push(ec);
                         self.cursor.inc();
@@ -465,7 +483,9 @@ impl Scanner {
                     }
                 }
 
-                return Token::Unknown { value: format!("Invalid number suffix in: {}", s) };
+                return Token::Unknown {
+                    value: format!("Invalid number suffix in: {}", s),
+                };
             } else if add == '!' {
                 break; // Break without cursor.inc() to let scan() deal with next char.
             } else {
@@ -485,7 +505,9 @@ impl Scanner {
         token.
         */
 
-        Token::IntegerLiteral { value: s.parse::<i32>().unwrap() }
+        Token::IntegerLiteral {
+            value: s.parse::<i32>().unwrap(),
+        }
     }
 
     fn scan_variable(&mut self) -> Token {
@@ -497,7 +519,8 @@ impl Scanner {
          */
         let mut s = String::from(self.cursor.peek().unwrap());
 
-        while let Some(c) = self.cursor.next() { // Handles EOF
+        while let Some(c) = self.cursor.next() {
+            // Handles EOF
             /*
             This function should not be called with leading numeric
             character since scan() only calls this function when
@@ -524,27 +547,25 @@ impl Scanner {
             "do" | "begin" | "end" | "var" | "array" | "procedure" |
             "function" | "program" | "assert" | "return"
              */
-            "or" => { Token::Or }
-            "and" => { Token::And }
-            "not" => { Token::Not }
-            "if" => { Token::If }
-            "then" => { Token::Then }
-            "else" => { Token::Else }
-            "of" => { Token::Of }
-            "while" => { Token::While }
-            "do" => { Token::Do }
-            "begin" => { Token::Begin }
-            "end" => { Token::End }
-            "var" => { Token::Var }
-            "array" => { Token::Array }
-            "procedure" => { Token::Procedure }
-            "function" => { Token::Function }
-            "program" => { Token::Program }
-            "assert" => { Token::Assert }
-            "return" => { Token::Return }
-            _ => {
-                Token::Variable { value: s }
-            }
+            "or" => Token::Or,
+            "and" => Token::And,
+            "not" => Token::Not,
+            "if" => Token::If,
+            "then" => Token::Then,
+            "else" => Token::Else,
+            "of" => Token::Of,
+            "while" => Token::While,
+            "do" => Token::Do,
+            "begin" => Token::Begin,
+            "end" => Token::End,
+            "var" => Token::Var,
+            "array" => Token::Array,
+            "procedure" => Token::Procedure,
+            "function" => Token::Function,
+            "program" => Token::Program,
+            "assert" => Token::Assert,
+            "return" => Token::Return,
+            _ => Token::Variable { value: s },
         };
     }
 }

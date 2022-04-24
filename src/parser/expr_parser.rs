@@ -8,13 +8,16 @@ struct Cursor {
 
 impl Cursor {
     fn from(tokens: &Vec<Expression>, index: usize) -> Cursor {
-        Cursor { tokens: tokens.clone(), index }
+        Cursor {
+            tokens: tokens.clone(),
+            index,
+        }
     }
 
     fn is_end(&mut self) -> bool {
         match self.tokens.get(self.index) {
-            Some(_t) => { false }
-            None => { true }
+            Some(_t) => false,
+            None => true,
         }
     }
 
@@ -60,7 +63,7 @@ pub struct ExpressionParser {
 impl ExpressionParser {
     pub fn from(expr: &Vec<Expression>) -> ExpressionParser {
         ExpressionParser {
-            cursor: Cursor::from(expr, 0)
+            cursor: Cursor::from(expr, 0),
         }
     }
 
@@ -143,7 +146,10 @@ impl ExpressionParser {
          */
         let mut expr = self.factor();
 
-        while self.cursor.matches(vec![Expression::Plus, Expression::Minus]) {
+        while self
+            .cursor
+            .matches(vec![Expression::Plus, Expression::Minus])
+        {
             expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
@@ -162,7 +168,10 @@ impl ExpressionParser {
          */
         let mut expr = self.unary();
 
-        while self.cursor.matches(vec![Expression::Multiply, Expression::Divide]) {
+        while self
+            .cursor
+            .matches(vec![Expression::Multiply, Expression::Divide])
+        {
             expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
@@ -178,10 +187,16 @@ impl ExpressionParser {
         <unary> ::= "" | "-" | "!" <primary>
         <unary> ::= <primary>
          */
-        if self.cursor.matches(vec![Expression::Not, Expression::Minus]) {
+        if self
+            .cursor
+            .matches(vec![Expression::Not, Expression::Minus])
+        {
             let op = self.cursor.previous();
             let r = self.unary();
-            return Expression::Unary { op: Box::from(op), value: Box::from(r) };
+            return Expression::Unary {
+                op: Box::from(op),
+                value: Box::from(r),
+            };
         }
         self.primary()
     }
@@ -209,7 +224,10 @@ impl ExpressionParser {
                 self.cursor.advance();
                 e
             }
-            Expression::Function { id: _, arguments: _ } => {
+            Expression::Function {
+                id: _,
+                arguments: _,
+            } => {
                 self.cursor.advance();
                 e
             }
@@ -217,14 +235,14 @@ impl ExpressionParser {
                 self.cursor.advance();
                 let expr = self.expression();
                 return if self.cursor.matches(vec![Expression::CloseParen]) {
-                    Expression::Group { value: Box::from(expr) }
+                    Expression::Group {
+                        value: Box::from(expr),
+                    }
                 } else {
                     Expression::Error
                 };
             }
-            _ => {
-                Expression::Error
-            }
+            _ => Expression::Error,
         };
     }
 }

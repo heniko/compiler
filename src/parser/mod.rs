@@ -1,42 +1,27 @@
 mod expr_parser;
 
 use crate::scanner::{Token, TokenPosition};
+use expr_parser::ExpressionParser;
 use std::collections::VecDeque;
 use std::string::ParseError;
-use expr_parser::ExpressionParser;
-
-#[cfg(test)]
-mod tests;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum VariableType {
     Error,
-    ArrayType {
-        var_type: String,
-        size: Expression,
-    },
-    SimpleType {
-        var_type: String
-    },
+    ArrayType { var_type: String, size: Expression },
+    SimpleType { var_type: String },
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum VariableAccess {
     Error,
-    SimpleAccess {
-        id: String
-    },
+    SimpleAccess { id: String },
     /*
     Expression may contain variable accesses
     so the expression needs to be boxed.
      */
-    ArrayAccess {
-        id: String,
-        index: Box<Expression>,
-    },
-    SizeAccess {
-        id: String
-    },
+    ArrayAccess { id: String, index: Box<Expression> },
+    SizeAccess { id: String },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -48,17 +33,45 @@ pub struct VariableDeclaration {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Error,
-    Assignment { var: VariableAccess, value: Expression },
-    Call { id: String, arguments: Vec<Expression> },
-    Return { value: Expression },
-    Read { ids: Vec<String> },
-    Write { arguments: Vec<Expression> },
-    Assert { value: Expression },
-    Block { statements: Vec<Statement> },
-    If { value: Expression, statement: Box<Statement> },
-    IfElse { value: Expression, if_statement: Box<Statement>, else_statement: Box<Statement> },
-    While { value: Expression, statement: Box<Statement> },
-    VariableDeclaration { variables: Vec<VariableDeclaration> },
+    Assignment {
+        var: VariableAccess,
+        value: Expression,
+    },
+    Call {
+        id: String,
+        arguments: Vec<Expression>,
+    },
+    Return {
+        value: Expression,
+    },
+    Read {
+        ids: Vec<String>,
+    },
+    Write {
+        arguments: Vec<Expression>,
+    },
+    Assert {
+        value: Expression,
+    },
+    Block {
+        statements: Vec<Statement>,
+    },
+    If {
+        value: Expression,
+        statement: Box<Statement>,
+    },
+    IfElse {
+        value: Expression,
+        if_statement: Box<Statement>,
+        else_statement: Box<Statement>,
+    },
+    While {
+        value: Expression,
+        statement: Box<Statement>,
+    },
+    VariableDeclaration {
+        variables: Vec<VariableDeclaration>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -79,25 +92,61 @@ pub enum Expression {
     Divide,
     Modulo,
     And,
-    StringLiteral { value: String },
-    IntegerLiteral { value: i32 },
-    RealLiteral { value: f32 },
-    BooleanLiteral { value: bool },
-    Function { id: String, arguments: Vec<Expression> },
-    Variable { var: VariableAccess },
+    StringLiteral {
+        value: String,
+    },
+    IntegerLiteral {
+        value: i32,
+    },
+    RealLiteral {
+        value: f32,
+    },
+    BooleanLiteral {
+        value: bool,
+    },
+    Function {
+        id: String,
+        arguments: Vec<Expression>,
+    },
+    Variable {
+        var: VariableAccess,
+    },
     OpenParen,
     CloseParen,
-    Unary { op: Box<Expression>, value: Box<Expression> },
-    Binary { op: Box<Expression>, left: Box<Expression>, right: Box<Expression> },
-    Group { value: Box<Expression> },
+    Unary {
+        op: Box<Expression>,
+        value: Box<Expression>,
+    },
+    Binary {
+        op: Box<Expression>,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+    Group {
+        value: Box<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum AST {
     Error,
-    Program { id: String, functions: Vec<AST>, procedures: Vec<AST>, main: Statement },
-    Procedure { id: String, parameters: Vec<VariableDeclaration>, block: Statement },
-    Function { id: String, parameters: Vec<VariableDeclaration>, block: Statement, res_type: String },
+    Program {
+        id: String,
+        functions: Vec<AST>,
+        procedures: Vec<AST>,
+        main: Statement,
+    },
+    Procedure {
+        id: String,
+        parameters: Vec<VariableDeclaration>,
+        block: Statement,
+    },
+    Function {
+        id: String,
+        parameters: Vec<VariableDeclaration>,
+        block: Statement,
+        res_type: String,
+    },
     //Call { id: String, arguments: Vec<Expression> },
     Parameters,
     Parameter,
@@ -113,10 +162,7 @@ pub struct ParserError {
 
 impl ParserError {
     pub fn from(position: Option<TokenPosition>, message: String) -> ParserError {
-        ParserError {
-            position,
-            message,
-        }
+        ParserError { position, message }
     }
 }
 
@@ -199,7 +245,11 @@ impl Parser {
                 true
             } else {
                 let err_token = token.clone();
-                self.parse_error(format!("Expected token: {:?}, found token: {:?}.", match_token.clone(), err_token));
+                self.parse_error(format!(
+                    "Expected token: {:?}, found token: {:?}.",
+                    match_token.clone(),
+                    err_token
+                ));
                 false
             };
         }
@@ -274,17 +324,19 @@ impl Parser {
         // and call correct function to handle that case.
         return if let (Some(token), Some(position)) = self.peek() {
             match token {
-                Token::Begin => { self.block() }
-                Token::While => { self.while_statement() }
-                Token::Return => { self.return_statement() }
-                Token::If => { self.if_statement() }
-                Token::Assert => { self.assert_statement() }
-                Token::Var => { self.var_declaration() }
-                Token::Variable { value: _ } => { self.call_or_assign() }
+                Token::Begin => self.block(),
+                Token::While => self.while_statement(),
+                Token::Return => self.return_statement(),
+                Token::If => self.if_statement(),
+                Token::Assert => self.assert_statement(),
+                Token::Var => self.var_declaration(),
+                Token::Variable { value: _ } => self.call_or_assign(),
                 _ => {
                     // This is where we end up if expected statement but found
                     // something else
-                    self.parse_error(String::from("Expected statement. [statement(), unknown token]"));
+                    self.parse_error(String::from(
+                        "Expected statement. [statement(), unknown token]",
+                    ));
                     Statement::Error
                 }
             }
@@ -328,9 +380,7 @@ impl Parser {
             return Statement::Error;
         }
 
-        Statement::Block {
-            statements
-        }
+        Statement::Block { statements }
     }
 
     fn main_block(&mut self) -> Statement {
@@ -364,9 +414,7 @@ impl Parser {
 
         // We can use the same block type since the contents
         // of the main block and normal block are same.
-        Statement::Block {
-            statements
-        }
+        Statement::Block { statements }
     }
 
     fn while_statement(&mut self) -> Statement {
@@ -447,15 +495,13 @@ impl Parser {
          */
         return if arguments.len() == 1 {
             Statement::Assert {
-                value: arguments.pop().unwrap()
+                value: arguments.pop().unwrap(),
             }
         } else {
-            self.errors.push(
-                ParserError {
-                    message: String::from("Assert can only take one argument. [assert_statement()]"),
-                    position: None,
-                }
-            );
+            self.errors.push(ParserError {
+                message: String::from("Assert can only take one argument. [assert_statement()]"),
+                position: None,
+            });
             Statement::Error
         };
     }
@@ -488,7 +534,9 @@ impl Parser {
                 if let (Some(Token::Variable { value: _ }), Some(_p)) = self.peek() {
                     /* Do nothing */
                 } else {
-                    self.parse_error(String::from("Expected identifier. [var_declaration(), id exists after comma]"));
+                    self.parse_error(String::from(
+                        "Expected identifier. [var_declaration(), id exists after comma]",
+                    ));
                     return Statement::Error;
                 }
             }
@@ -509,8 +557,11 @@ impl Parser {
             Statement::VariableDeclaration {
                 variables: ids
                     .iter()
-                    .map(|x| VariableDeclaration { id: x.clone(), var_type: var_type.clone() })
-                    .collect()
+                    .map(|x| VariableDeclaration {
+                        id: x.clone(),
+                        var_type: var_type.clone(),
+                    })
+                    .collect(),
             }
         };
     }
@@ -522,12 +573,8 @@ impl Parser {
          */
         return if let (Some(token), Some(position)) = self.next() {
             return match token {
-                Token::Assign => {
-                    self.assign()
-                }
-                Token::OpenParen => {
-                    self.call()
-                }
+                Token::Assign => self.assign(),
+                Token::OpenParen => self.call(),
                 _ => {
                     // Not assign or call so we don't know what it is
                     self.parse_error(String::from("Expected ':=' or '('. [call_or_assign()]."));
@@ -564,10 +611,7 @@ impl Parser {
         if !self.expect(Token::Semicolon) {
             Statement::Error
         } else {
-            Statement::Call {
-                id,
-                arguments,
-            }
+            Statement::Call { id, arguments }
         }
     }
 
@@ -587,10 +631,7 @@ impl Parser {
             return Statement::Error;
         }
 
-        Statement::Assignment {
-            var,
-            value: expr,
-        }
+        Statement::Assignment { var, value: expr }
     }
 
     fn return_statement(&mut self) -> Statement {
@@ -608,9 +649,7 @@ impl Parser {
         return if !self.expect(Token::Semicolon) {
             Statement::Error
         } else {
-            Statement::Return {
-                value: expression
-            }
+            Statement::Return { value: expression }
         };
     }
 
@@ -631,7 +670,9 @@ impl Parser {
             id = value.clone();
             self.pop();
         } else {
-            self.parse_error(String::from("Expected identifier. [parse_function(), function id]"));
+            self.parse_error(String::from(
+                "Expected identifier. [parse_function(), function id]",
+            ));
             return AST::Error;
         }
 
@@ -741,7 +782,9 @@ impl Parser {
                         parameters.push(p);
                     }
                     None => {
-                        self.parse_error(String::from("Error while parsing parameters. [parameters()]"));
+                        self.parse_error(String::from(
+                            "Error while parsing parameters. [parameters()]",
+                        ));
                     }
                 }
             } else {
@@ -782,12 +825,7 @@ impl Parser {
 
         var_type = self.parse_type();
 
-        Some(
-            VariableDeclaration {
-                id,
-                var_type,
-            }
-        )
+        Some(VariableDeclaration { id, var_type })
     }
 
     fn identifier(&mut self) -> Option<String> {
@@ -917,31 +955,63 @@ impl Parser {
                         expr_tokens.push(Expression::CloseParen);
                     }
                 }
-                Token::Plus => { expr_tokens.push(Expression::Plus); }
-                Token::Minus => { expr_tokens.push(Expression::Minus); }
-                Token::Multiply => { expr_tokens.push(Expression::Multiply); }
-                Token::Divide => { expr_tokens.push(Expression::Divide); }
-                Token::Le => { expr_tokens.push(Expression::Le); }
-                Token::Leq => { expr_tokens.push(Expression::Leq); }
-                Token::Ge => { expr_tokens.push(Expression::Ge); }
-                Token::Geq => { expr_tokens.push(Expression::Geq); }
-                Token::Inequality => { expr_tokens.push(Expression::Inequality); }
-                Token::Eq => { expr_tokens.push(Expression::Eq); }
-                Token::Or => { expr_tokens.push(Expression::Or); }
-                Token::And => { expr_tokens.push(Expression::And); }
-                Token::Not => { expr_tokens.push(Expression::Not); }
+                Token::Plus => {
+                    expr_tokens.push(Expression::Plus);
+                }
+                Token::Minus => {
+                    expr_tokens.push(Expression::Minus);
+                }
+                Token::Multiply => {
+                    expr_tokens.push(Expression::Multiply);
+                }
+                Token::Divide => {
+                    expr_tokens.push(Expression::Divide);
+                }
+                Token::Le => {
+                    expr_tokens.push(Expression::Le);
+                }
+                Token::Leq => {
+                    expr_tokens.push(Expression::Leq);
+                }
+                Token::Ge => {
+                    expr_tokens.push(Expression::Ge);
+                }
+                Token::Geq => {
+                    expr_tokens.push(Expression::Geq);
+                }
+                Token::Inequality => {
+                    expr_tokens.push(Expression::Inequality);
+                }
+                Token::Eq => {
+                    expr_tokens.push(Expression::Eq);
+                }
+                Token::Or => {
+                    expr_tokens.push(Expression::Or);
+                }
+                Token::And => {
+                    expr_tokens.push(Expression::And);
+                }
+                Token::Not => {
+                    expr_tokens.push(Expression::Not);
+                }
                 Token::Variable { value } => {
                     expr_tokens.push(self.variable_or_function_expression());
                     continue; // Skip loop pop() to make things easier
                 }
                 Token::StringLiteral { value } => {
-                    expr_tokens.push(Expression::StringLiteral { value: value.clone() });
+                    expr_tokens.push(Expression::StringLiteral {
+                        value: value.clone(),
+                    });
                 }
                 Token::IntegerLiteral { value } => {
-                    expr_tokens.push(Expression::IntegerLiteral { value: value.clone() });
+                    expr_tokens.push(Expression::IntegerLiteral {
+                        value: value.clone(),
+                    });
                 }
                 Token::RealLiteral { value } => {
-                    expr_tokens.push(Expression::RealLiteral { value: value.clone() });
+                    expr_tokens.push(Expression::RealLiteral {
+                        value: value.clone(),
+                    });
                 }
                 _ => {
                     // Found token that cannot be part of expression like ';'
@@ -973,7 +1043,7 @@ impl Parser {
         } else {
             // Variable access
             Expression::Variable {
-                var: self.parse_variable_access()
+                var: self.parse_variable_access(),
             }
         }
     }
@@ -1020,7 +1090,9 @@ impl Parser {
         if let Some(identifier) = self.identifier() {
             var_type = identifier;
         } else {
-            self.parse_error(String::from("Expected identifier. [parse_type(), var_type identifier]"));
+            self.parse_error(String::from(
+                "Expected identifier. [parse_type(), var_type identifier]",
+            ));
             return VariableType::Error;
         }
 
@@ -1030,9 +1102,7 @@ impl Parser {
                 var_type,
             }
         } else {
-            VariableType::SimpleType {
-                var_type
-            }
+            VariableType::SimpleType { var_type }
         }
     }
 
@@ -1048,7 +1118,9 @@ impl Parser {
         if let Some(identifier) = self.identifier() {
             id = identifier;
         } else {
-            self.parse_error(String::from("Expected identifier. [parse_variable_access(), variable identifier]"));
+            self.parse_error(String::from(
+                "Expected identifier. [parse_variable_access(), variable identifier]",
+            ));
             return VariableAccess::Error;
         }
 
@@ -1069,13 +1141,13 @@ impl Parser {
 
                     if let Some(identifier) = self.identifier() {
                         if identifier.as_str() == "size" {
-                            return VariableAccess::SizeAccess {
-                                id
-                            };
+                            return VariableAccess::SizeAccess { id };
                         }
                     }
 
-                    self.parse_error(String::from("Expected identifier 'size'. [parse_variable_access()]"));
+                    self.parse_error(String::from(
+                        "Expected identifier 'size'. [parse_variable_access()]",
+                    ));
                     return VariableAccess::Error;
                 }
                 Token::OpenBracket => {
@@ -1092,14 +1164,10 @@ impl Parser {
                         VariableAccess::Error
                     };
                 }
-                _ => {
-                    /* Not array or size so return SimpleAccess at end */
-                }
+                _ => { /* Not array or size so return SimpleAccess at end */ }
             }
         }
 
-        VariableAccess::SimpleAccess {
-            id
-        }
+        VariableAccess::SimpleAccess { id }
     }
 }
