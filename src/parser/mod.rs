@@ -26,8 +26,8 @@ pub enum VariableAccess {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct VariableDeclaration {
-    id: String,
-    var_type: VariableType,
+    pub id: String,
+    pub var_type: VariableType,
 }
 
 #[derive(Debug, PartialEq, Clone)]

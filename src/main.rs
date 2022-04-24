@@ -2,13 +2,13 @@
 mod io;
 mod parser;
 mod scanner;
-//mod semantic_analysis;
+mod semantic_analysis;
 
 use crate::io::{read_file, UserIO, IO};
 //use interpreter::Interpreter;
-use parser::{Parser};
+use crate::semantic_analysis::SemanticAnalyzer;
+use parser::Parser;
 use scanner::{Scanner, Token};
-//use crate::semantic_analysis::SemanticAnalyzer;
 
 fn main() {
     let mut io = UserIO::from();
@@ -74,18 +74,20 @@ fn main() {
     /*
     Validate the parse tree using semantic analysis.
      */
-    /*
     let semantic_analyzer = SemanticAnalyzer::from(parser.ast.clone());
 
     if !semantic_analyzer.errors.is_empty() {
-        println!("Found {} semantic error(s):", semantic_analyzer.errors.len());
+        println!(
+            "Found {} semantic error(s):",
+            semantic_analyzer.errors.len()
+        );
 
         for error in semantic_analyzer.errors.iter() {
             println!("{}", error);
         }
         return;
     }
-
+    /*
     let mut interpreter = Interpreter::from(parser.ast, Box::from(UserIO::from()));
 
     interpreter.run();

@@ -1,149 +1,292 @@
+use crate::parser::{Expression, VariableAccess, VariableDeclaration, VariableType, AST};
 use std::borrow::Borrow;
-use crate::parser::{Expr, Tree, VarType};
 use std::collections::HashMap;
+use std::hash::Hash;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Variable {
-    Int,
+pub enum Atomic {
     String,
-    Bool,
+    Integer,
+    Real,
+    Boolean,
     Error,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Parameters {
+    Any,
+    // Used for default read and writeln
+    List { parameters: Vec<IdType> },
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum IdType {
+    SimpleType {
+        var_type: Atomic,
+    },
+    ArrayType {
+        var_type: Atomic,
+    },
+    TypeType {
+        var_type: Atomic,
+    },
+    SizeType,
+    Function {
+        parameters: Parameters,
+        return_type: Atomic,
+    },
+    Procedure {
+        parameters: Parameters,
+    },
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct SemanticAnalyzer {
-    scopes: Vec<HashMap<String, Variable>>,
+    scope: Vec<HashMap<String, IdType>>,
     pub errors: Vec<String>,
 }
 
+/*
+Contains all the methods and associated functions
+that will be used in the semantic analyzer implementation.
+ */
 impl SemanticAnalyzer {
-    pub fn from(ast: Tree) -> SemanticAnalyzer {
+    pub fn from(ast: AST) -> SemanticAnalyzer {
+        let mut globals: HashMap<String, IdType> = HashMap::new();
+
+        // Add all predefined globals identifiers
+        globals.insert(
+            String::from("boolean"),
+            IdType::TypeType {
+                var_type: Atomic::String,
+            },
+        );
+        globals.insert(
+            String::from("integer"),
+            IdType::TypeType {
+                var_type: Atomic::Integer,
+            },
+        );
+        globals.insert(
+            String::from("real"),
+            IdType::TypeType {
+                var_type: Atomic::Real,
+            },
+        );
+        globals.insert(
+            String::from("string"),
+            IdType::TypeType {
+                var_type: Atomic::String,
+            },
+        );
+        globals.insert(
+            String::from("false"),
+            IdType::SimpleType {
+                var_type: Atomic::Boolean,
+            },
+        );
+        globals.insert(
+            String::from("true"),
+            IdType::SimpleType {
+                var_type: Atomic::Boolean,
+            },
+        );
+        globals.insert(
+            String::from("read"),
+            IdType::Procedure {
+                parameters: Parameters::Any,
+            },
+        );
+        globals.insert(
+            String::from("writeln"),
+            IdType::Procedure {
+                parameters: Parameters::Any,
+            },
+        );
+        globals.insert(String::from("size"), IdType::SizeType);
+
         let mut res = SemanticAnalyzer {
-            scopes: vec![],
-            errors: vec![],
+            scope: vec![globals],
+            errors: Vec::new(),
         };
         res.check(&ast.clone());
         res
     }
 
-    fn check(&mut self, ast: &Tree) {
-        /*
-        Checks:
-         - Variable not in scope when initialized
-         - Variable in scope when accessed
-         - Resolve expression types and check they match the variables
-         - Variable in for-loop is int
-         - Expressions in for-loop are int
-         */
-        self.add_scope();
-
+    /*
+    Entry point for the semantic analyzer.
+     */
+    fn check(&mut self, ast: &AST) {
         match ast {
-            Tree::Statements { value } => {
-                for statement in value.iter() {
-                    match statement {
-                        Tree::Var { name, value, var_type } => {
-                            // Initialize variable
-                            match var_type {
-                                VarType::Int => {
-                                    self.init_var(name.clone(), Variable::Int);
-                                }
-                                VarType::Bool => {
-                                    self.init_var(name.clone(), Variable::Bool);
-                                }
-                                VarType::String => {
-                                    self.init_var(name.clone(), Variable::String);
-                                }
-                            }
-                            // Assign evaluated expression as value
-                            match value.borrow() {
-                                Tree::Expr { value } => {
-                                    let new_val = self.evaluate(value);
-                                    self.mutate_var(name.clone(), new_val);
-                                }
-                                _ => {
-                                    // Should not happen
-                                    self.errors.push(String::from("Expected Tree::Expr."));
-                                }
-                            }
-                        }
-                        Tree::Assign { var, value } => {
-                            match value.borrow() {
-                                Tree::Expr { value } => {
-                                    let new_val = self.evaluate(value);
-                                    self.mutate_var(var.clone(), new_val);
-                                }
-                                _ => {
-                                    // Should not happen
-                                    self.errors.push(String::from("Expected Tree::Expr."));
-                                }
-                            }
-                        }
-                        Tree::For { var, start, end, statements } => {
-                            // Evaluate left expression
-                            let cs: &Tree = start.borrow();
-                            let s: Variable = if let Tree::Expr { value } = cs.clone() {
-                                self.evaluate(&value)
-                            } else {
-                                Variable::Error
-                            };
-
-                            // Evaluate right expression type
-                            let ce: &Tree = end.borrow();
-                            let e: Variable = if let Tree::Expr { value } = ce.clone() {
-                                self.evaluate(&value)
-                            } else {
-                                Variable::Error
-                            };
-
-                            // Get var type
-                            let v = self.get_var(var.clone());
-
-                            let t = (s, e, v);
-
-                            match t {
-                                (Variable::Int, Variable::Int, Variable::Int) => {
-                                    /* Everything is fine */
-                                }
-                                _ => {
-                                    self.errors.push(String::from("For loop variable and expressions need to be type int."));
-                                }
-                            }
-                            // Recursively check for loop statements
-                            self.check(statements);
-                        }
-                        Tree::Print { value } => {
-                            let v = value.borrow();
-                            match v {
-                                Tree::Expr { value } => {
-                                    let eval = self.evaluate(value);
-
-                                    if let Variable::Error = eval {
-                                        self.errors.push(String::from("Expression evaluation error."));
-                                    }
-                                }
-                                _ => { /* Should not happen */ }
-                            }
-                        }
-                        _ => { /* Statements that don't go through semantic analysis */ }
-                    }
+            AST::Program {
+                id: _,
+                functions,
+                procedures,
+                main: _,
+            } => {
+                /*
+                Add functions and procedures to global scope.
+                */
+                for function in functions.iter() {
+                    self.handle_function_declaration(function);
                 }
+
+                for procedure in procedures.iter() {
+                    self.handle_procedure_declaration(procedure);
+                }
+
+                /*
+                Do semantic analysis on the code of the procedures
+                and methods.
+                */
+
+                /*
+                Do the semantic analysis of main-block.
+                */
             }
             _ => {
-                // Should not happen
-                self.errors.push(String::from("Expected Tree::Statements."));
+                self.errors
+                    .push(String::from("AST does not contain program."));
+            }
+        }
+    }
+
+    /*
+    Adds new layer to current local scope. This happens
+    for example when a variable is created inside a loop
+    and it then needs to be dropped after the loop iteration
+    ends.
+     */
+    fn add_local_scope(&mut self) {
+        self.scope.push(HashMap::new());
+    }
+
+    /*
+    Drops a layer from the current local scope. For example
+    loops will add new layer to the local scope that then
+    needs to be dropped after the current iteration ends.
+     */
+    fn drop_local_scope(&mut self) {
+        self.scope.pop();
+    }
+
+    /*
+    'Initialize' (add type to current scope and layer) for some id.
+     */
+    fn init_var(&mut self, id: String, var_type: IdType) {
+        self.scope
+            .last_mut() // Last local scope
+            .unwrap()
+            .insert(id, var_type);
+    }
+
+    /*
+    'Access value' (resolve type) of the id. Look order:
+    Most recent local scope layer -> Least recent local scope layer, Global scope
+     */
+    fn access_var(&self, id: String) -> Option<IdType> {
+        /*
+        Search scopes starting from most recently added (For example the scope
+        of block after if statement) to least recently added (Global scope)
+        and return the type of first match.
+        */
+        for layer in self.scope.iter().rev() {
+            if layer.contains_key(&id) {
+                return Some(layer.get(&id).unwrap().clone());
             }
         }
 
-        self.drop_scope();
+        // Not in scope
+        None
     }
 
-    fn add_scope(&mut self) {
-        self.scopes.push(HashMap::new());
+    /*
+     */
+    fn handle_function_declaration(&mut self, ast: &AST) {
+        if let AST::Function {
+            block: _,
+            id,
+            parameters,
+            res_type,
+        } = ast
+        {
+            let mut params: Vec<IdType> = Vec::new();
+
+            for p in parameters.iter() {
+                let p_var = p.var_type.clone();
+                match p_var {
+                    VariableType::ArrayType { var_type, size: _ } => {
+                        params.push(IdType::ArrayType {
+                            var_type: self.string_to_atomic(&var_type),
+                        })
+                    }
+                    VariableType::SimpleType { var_type } => params.push(IdType::SimpleType {
+                        var_type: self.string_to_atomic(&var_type),
+                    }),
+                    _ => {}
+                }
+            }
+
+            self.init_var(
+                id.clone(),
+                IdType::Function {
+                    parameters: Parameters::List { parameters: params },
+                    return_type: self.string_to_atomic(res_type),
+                },
+            )
+        }
     }
 
-    fn drop_scope(&mut self) {
-        self.scopes.pop();
+    fn handle_procedure_declaration(&mut self, ast: &AST) {
+        if let AST::Procedure {
+            block: _,
+            id,
+            parameters,
+        } = ast
+        {
+            let mut params: Vec<IdType> = Vec::new();
+
+            for p in parameters.iter() {
+                let p_var = p.var_type.clone();
+                match p_var {
+                    VariableType::ArrayType { var_type, size: _ } => {
+                        params.push(IdType::ArrayType {
+                            var_type: self.string_to_atomic(&var_type),
+                        })
+                    }
+                    VariableType::SimpleType { var_type } => params.push(IdType::SimpleType {
+                        var_type: self.string_to_atomic(&var_type),
+                    }),
+                    _ => {}
+                }
+            }
+
+            self.init_var(
+                id.clone(),
+                IdType::Procedure {
+                    parameters: Parameters::List { parameters: params },
+                },
+            )
+        }
     }
+
+    fn string_to_atomic(&self, s: &String) -> Atomic {
+        match s.as_str() {
+            "string" => Atomic::String,
+            "integer" => Atomic::Integer,
+            "real" => Atomic::Real,
+            "boolean" => Atomic::Boolean,
+            _ => Atomic::Error,
+        }
+    }
+}
+
+/*
+Methods for semantic analyzing.
+ */
+impl SemanticAnalyzer {}
+
+/*impl SemanticAnalyzer {
 
     fn get_var(&mut self, key: String) -> Variable {
         for scope in self.scopes.iter() {
@@ -300,3 +443,5 @@ impl SemanticAnalyzer {
         };
     }
 }
+
+ */
