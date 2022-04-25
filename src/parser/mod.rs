@@ -756,7 +756,7 @@ impl Parser {
         }
 
         loop {
-            if let (Some(token), Some(position)) = self.peek() {
+            if let (Some(token), Some(_position)) = self.peek() {
                 // If ')' is next we break out of the loop
                 if token == &Token::CloseParen {
                     break;
@@ -808,11 +808,11 @@ impl Parser {
         let id;
         let var_type;
 
-        if let (Some(Token::Var), Some(position)) = self.peek() {
+        if let (Some(Token::Var), Some(_position)) = self.peek() {
             self.pop();
         }
 
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             id = value.clone();
             self.pop();
         } else {
@@ -1055,7 +1055,7 @@ impl Parser {
         <ArrayType> ::= "array" "[" <Expression> "]" "of" <identifier>
          */
         let is_arr;
-        let mut arr_expr = Expression::Error;
+        let mut arr_expr = Expression::None;
         let var_type;
 
         // Check if we are parsing simple or array type
