@@ -449,64 +449,112 @@ impl Scanner {
         };
     }
 
-    fn scan_number(&mut self) -> Token {
-        /*
-        Make sure that number is not continued with characters
-        in order to attempt naming variable with leading numerical
-        character (for example '1num'). This should result into an
-        Unknown token result. Any other character ending a number
-        should result into an Number token and letting scan() deal
-        with the token ending character.
-         */
+    fn scan_number_string(&mut self) -> String {
+        if !self.cursor.peek().unwrap().is_numeric() {
+            return String::from("");
+        }
+
         let mut s = String::from(self.cursor.peek().unwrap());
 
         while let Some(c) = self.cursor.next() {
-            let add = match c {
-                '0'..='9' => c,
-                'A'..='Z' | 'a'..='z' => '?',
-                _ => '!',
-            };
-
-            if add == '?' {
-                /*
-                Handle error case where starting number turns into a variable.
-                Handled by finding next non numerical and non alphabetical
-                character for scan() to continue from.
-                 */
-                while let Some(ec) = self.cursor.next() {
-                    // Also handles EOF.
-                    if ec.is_alphanumeric() {
-                        s.push(ec);
-                        self.cursor.inc();
-                    } else {
-                        break;
-                    }
-                }
-
-                return Token::Unknown {
-                    value: format!("Invalid number suffix in: {}", s),
-                };
-            } else if add == '!' {
-                break; // Break without cursor.inc() to let scan() deal with next char.
-            } else {
-                /*
-                Only remaining case is that c is number and we can extend s
-                in hopes of creating a valid number.
-                 */
+            if c.is_numeric() {
                 s.push(c);
+                self.cursor.inc();
+            } else {
+                break;
             }
-            self.cursor.inc();
         }
 
-        /*
-        There is no need to handle case where end of line
-        is found in the middle of building a number since
-        for example string "4" alone would result in a valid
-        token.
-        */
+        s
+    }
 
-        Token::IntegerLiteral {
-            value: s.parse::<i32>().unwrap(),
+    fn scan_number(&mut self) -> Token {
+        let mut num = self.scan_number_string();
+
+        if let Some(c) = self.cursor.next() {
+            match c {
+                '.' => {
+                    self.cursor.inc();
+                    self.cursor.inc();
+                    num = format!("{}.{}", num, self.scan_number_string());
+                }
+                'a'..='z' | 'A'..='Z' => {
+                    // Invalid character after number
+                    return Token::Unknown {
+                        value: format!("Invalid number suffix: {}{}.", num, c.clone()),
+                    };
+                }
+                _ => {
+                    // Parsed integer
+                    return Token::IntegerLiteral {
+                        value: num.parse::<i32>().unwrap(),
+                    };
+                }
+            }
+        } else {
+            // EOF
+            return Token::IntegerLiteral {
+                value: num.parse::<i32>().unwrap(),
+            };
+        }
+
+        let parsed_float = num.parse::<f32>().unwrap();
+        let pow;
+
+        if let Some(c) = self.cursor.next() {
+            match c {
+                'e' => {
+                    self.cursor.inc();
+                    self.cursor.inc();
+                    pow = self.scan_number_string();
+                }
+                'a'..='z' | 'A'..='Z' => {
+                    // Invalid character after number
+                    return Token::Unknown {
+                        value: format!("Invalid number suffix: {}{}.", num, c.clone()),
+                    };
+                }
+                _ => {
+                    // Parsed float without exponent
+                    return Token::RealLiteral {
+                        value: parsed_float,
+                    };
+                }
+            }
+        } else {
+            // EOF
+            return Token::RealLiteral {
+                value: parsed_float,
+            };
+        }
+
+        let parsed_pow = f32::powi(10.0, pow.parse::<i32>().unwrap());
+
+        if let Some(c) = self.cursor.next() {
+            match c {
+                'a'..='z' | 'A'..='Z' => {
+                    // Invalid character after number so
+                    return Token::Unknown {
+                        value: format!(
+                            "Invalid number suffix: {}{}{}{}.",
+                            num,
+                            'e',
+                            pow,
+                            c.clone()
+                        ),
+                    };
+                }
+                _ => {
+                    return Token::RealLiteral {
+                        value: parsed_float * parsed_pow,
+                    };
+                }
+            }
+        } else {
+            // EOF
+            return Token::RealLiteral {
+                value: parsed_float * parsed_pow,
+            };
         }
     }
 

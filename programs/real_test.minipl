@@ -1,0 +1,5 @@
+program hello_world;
+begin
+  var x : real;
+  x := 30.73e2;
+end.
