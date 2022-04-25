@@ -1,11 +1,9 @@
-//mod interpreter;
 mod io;
 mod parser;
 mod scanner;
 mod semantic_analysis;
 
-use crate::io::{read_file, UserIO, IO};
-//use interpreter::Interpreter;
+use crate::io::{read_file, UserIO};
 use crate::semantic_analysis::SemanticAnalyzer;
 use parser::Parser;
 use scanner::{Scanner, Token};
@@ -87,9 +85,4 @@ fn main() {
         }
         return;
     }
-    /*
-    let mut interpreter = Interpreter::from(parser.ast, Box::from(UserIO::from()));
-
-    interpreter.run();
-     */
 }
