@@ -233,7 +233,9 @@ impl SemanticAnalyzer {
             for p in parameters.iter() {
                 let p_var = p.var_type.clone();
                 params.push(match p_var {
-                    VariableType::ArrayType { var_type, size: _ } => Variable::IntegerArray,
+                    VariableType::ArrayType { var_type, size: _ } => {
+                        self.string_to_atomic_arr(&var_type)
+                    }
                     VariableType::SimpleType { var_type } => self.string_to_atomic(&var_type),
                     _ => Variable::Error,
                 })
