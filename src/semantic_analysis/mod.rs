@@ -134,7 +134,7 @@ impl SemanticAnalyzer {
                 id: _,
                 functions,
                 procedures,
-                main: _,
+                main,
             } => {
                 /*
                 Add functions and procedures to global scope.
@@ -155,9 +155,17 @@ impl SemanticAnalyzer {
                     self.check_function(function);
                 }
 
+                for procedure in procedures.iter() {
+                    self.check_procedure(procedure);
+                }
+
                 /*
                 Do the semantic analysis of main-block.
                 */
+                self.add_local_scope();
+                self.return_type = Variable::None;
+                self.check_statement(main);
+                self.drop_local_scope();
             }
             _ => {
                 self.errors
@@ -352,6 +360,55 @@ impl SemanticAnalyzer {
 
             // Check statements
             self.return_type = self.string_to_atomic(res_type);
+            self.check_statement(block);
+
+            // Drop function scope
+            self.drop_local_scope();
+        }
+    }
+
+    fn check_procedure(&mut self, ast: &AST) {
+        if let AST::Procedure {
+            block,
+            id: _,
+            parameters,
+        } = ast
+        {
+            // Create first local layer to scope
+            self.add_local_scope();
+            // Add arguments to first local variable layer
+            for parameter in parameters.iter() {
+                let par_type = parameter.var_type.clone();
+
+                let par_to_add = match par_type {
+                    VariableType::SimpleType { var_type } => IdType::SimpleType {
+                        var_type: self.string_to_atomic(&var_type),
+                    },
+                    VariableType::ArrayType { var_type, size } => {
+                        /*
+                        Size of parameter needs to be 'None' since this is a
+                        reference to an array and not a declaration of a new one.
+                        */
+                        if size != Expression::None {
+                            self.errors
+                                .push(String::from("Array parameter size can't be predefined."));
+                        }
+                        IdType::ArrayType {
+                            var_type: self.string_to_atomic(&var_type),
+                        }
+                    }
+                    _ => {
+                        self.errors
+                            .push(String::from("Could not resolve parameter type."));
+                        IdType::Error
+                    }
+                };
+
+                self.init_var(parameter.id.clone(), par_to_add);
+            }
+
+            // Check statements
+            self.return_type = Variable::None;
             self.check_statement(block);
 
             // Drop function scope

@@ -429,8 +429,14 @@ impl Scanner {
     fn scan_le(&mut self) -> Token {
         return if let Some(c) = self.cursor.next() {
             match c {
-                '>' => Token::Inequality,
-                '=' => Token::Leq,
+                '>' => {
+                    self.cursor.inc();
+                    Token::Inequality
+                }
+                '=' => {
+                    self.cursor.inc();
+                    Token::Leq
+                }
                 _ => Token::Le,
             }
         } else {
@@ -441,7 +447,10 @@ impl Scanner {
     fn scan_ge(&mut self) -> Token {
         return if let Some(c) = self.cursor.next() {
             match c {
-                '=' => Token::Geq,
+                '=' => {
+                    self.cursor.inc();
+                    Token::Geq
+                }
                 _ => Token::Ge,
             }
         } else {
