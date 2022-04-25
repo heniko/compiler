@@ -1,6 +1,4 @@
-use crate::parser::{
-    Expression, Statement, VariableAccess, VariableDeclaration, VariableType, AST,
-};
+use crate::parser::{Expression, Statement, VariableAccess, VariableType, AST};
 use std::collections::HashMap;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
