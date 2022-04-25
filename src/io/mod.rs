@@ -1,7 +1,6 @@
+use std::fs::File;
 use std::io;
 use std::io::Read;
-use std::collections::VecDeque;
-use std::fs::File;
 
 pub trait IO {
     fn read(&mut self) -> String;
@@ -26,27 +25,6 @@ impl IO for UserIO {
 
     fn print(&mut self, out: String) {
         print!("{}", out);
-    }
-}
-
-pub struct MockIO {
-    input: VecDeque<String>,
-    pub output: Vec<String>,
-}
-
-impl MockIO {
-    pub fn from(input: Vec<String>) -> MockIO {
-        MockIO { input: VecDeque::from(input), output: Vec::new() }
-    }
-}
-
-impl IO for MockIO {
-    fn read(&mut self) -> String {
-        self.input.pop_front().unwrap()
-    }
-
-    fn print(&mut self, out: String) {
-        self.output.push(out);
     }
 }
 
