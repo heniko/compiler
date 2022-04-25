@@ -312,7 +312,7 @@ impl SemanticAnalyzer {
     fn check_function(&mut self, ast: &AST) {
         if let AST::Function {
             block,
-            id,
+            id: _,
             parameters,
             res_type,
         } = ast
@@ -347,7 +347,7 @@ impl SemanticAnalyzer {
                     }
                 };
 
-                self.init_var(id.clone(), par_to_add);
+                self.init_var(parameter.id.clone(), par_to_add);
             }
 
             // Check statements
@@ -447,6 +447,47 @@ impl SemanticAnalyzer {
                 }
                 self.drop_local_scope();
             }
+            Statement::While { value, statement } => {
+                if self.evaluate(value) != Variable::Boolean {
+                    self.errors.push(String::from(
+                        "While loop condition needs to be boolean type.",
+                    ));
+                }
+
+                self.add_local_scope();
+                self.check_statement(statement);
+                self.drop_local_scope();
+            }
+            Statement::If { value, statement } => {
+                if self.evaluate(value) != Variable::Boolean {
+                    self.errors.push(String::from(
+                        "If statement condition needs to be boolean type.",
+                    ));
+                }
+
+                self.add_local_scope();
+                self.check_statement(statement);
+                self.drop_local_scope();
+            }
+            Statement::IfElse {
+                value,
+                if_statement,
+                else_statement,
+            } => {
+                if self.evaluate(value) != Variable::Boolean {
+                    self.errors.push(String::from(
+                        "If statement condition needs to be boolean type.",
+                    ));
+                }
+
+                self.add_local_scope();
+                self.check_statement(if_statement);
+                self.drop_local_scope();
+
+                self.add_local_scope();
+                self.check_statement(else_statement);
+                self.drop_local_scope();
+            }
             _ => {}
         }
     }
@@ -500,10 +541,7 @@ impl SemanticAnalyzer {
                 left: _,
                 right: _,
             } => self.evaluate_binary(expr),
-            _ => {
-                dbg!(expr.clone());
-                Variable::Error
-            }
+            _ => Variable::Error,
         }
     }
 
@@ -637,6 +675,17 @@ impl SemanticAnalyzer {
                         IdType::ArrayType { var_type } => var_type.clone(),
                         _ => Variable::Error,
                     }
+                } else {
+                    Variable::Error
+                }
+            }
+            VariableAccess::SizeAccess { id } => {
+                let stored = self.access_var(id.clone());
+
+                // TODO: Check that size is not redefined ion scope.
+
+                if let Some(IdType::ArrayType { var_type: _ }) = stored {
+                    Variable::Integer
                 } else {
                     Variable::Error
                 }
