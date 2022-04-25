@@ -394,6 +394,54 @@ impl SemanticAnalyzer {
                     self.init_var(variable.id.clone(), t);
                 }
             }
+            Statement::Assignment { var, value } => {
+                let eval = self.evaluate(value);
+
+                match var {
+                    VariableAccess::SimpleAccess { id } => {
+                        let access = self.access_var(id.clone());
+
+                        if let Some(t) = access {
+                            if let IdType::SimpleType { var_type } = t {
+                                if var_type != eval {
+                                    self.errors.push(String::from(
+                                        "Variable type and assignment evaluation missmatch.",
+                                    ));
+                                }
+                            } else {
+                                self.errors.push(String::from(
+                                    "Variable type and assignment evaluation missmatch.",
+                                ));
+                            }
+                        }
+                    }
+                    VariableAccess::ArrayAccess { id, index } => {
+                        if self.evaluate(index) != Variable::Integer {
+                            self.errors
+                                .push(String::from("Array index needs to be integer."));
+                        }
+
+                        let access = self.access_var(id.clone());
+
+                        if let Some(t) = access {
+                            if let IdType::ArrayType { var_type } = t {
+                                if var_type != eval {
+                                    self.errors.push(String::from(
+                                        "Variable type and assignment evaluation missmatch.",
+                                    ));
+                                }
+                            } else {
+                                self.errors.push(String::from(
+                                    "Variable type and assignment evaluation missmatch.",
+                                ));
+                            }
+                        }
+                    }
+                    _ => {
+                        self.errors.push(String::from("Variable not in scope."));
+                    }
+                }
+            }
             Statement::Block { statements } => {
                 self.add_local_scope();
                 for statement in statements.iter() {
@@ -462,11 +510,86 @@ impl SemanticAnalyzer {
     }
 
     fn evaluate_unary(&mut self, expr: &Expression) -> Variable {
-        todo!();
+        if let Expression::Unary { op, value } = expr {
+            let op_unboxed = op.as_ref().clone();
+            let value_evaluated = self.evaluate(value.as_ref());
+            match op_unboxed {
+                Expression::Not => match value_evaluated {
+                    Variable::Boolean => Variable::Boolean,
+                    _ => Variable::Error,
+                },
+                Expression::Plus | Expression::Minus => match value_evaluated {
+                    Variable::Real => Variable::Real,
+                    Variable::Integer => Variable::Integer,
+                    _ => Variable::Error,
+                },
+                _ => Variable::Error,
+            }
+        } else {
+            Variable::Error
+        }
     }
 
-    fn evaluate_binary(&mut self, epxr: &Expression) -> Variable {
-        todo!();
+    fn evaluate_binary(&mut self, expr: &Expression) -> Variable {
+        /*
+        Strategy here is to recursively find the evaluation of
+        right and left. Then for each operation we have some
+        pairs that the operation can handle. For example you
+        can add two strings but not multiply them. Dealing with
+        real equality errors is left for the programmer to handle
+        since our language allows such operations even if using
+        them usually doesn't make much sense.
+        */
+        if let Expression::Binary { op, left, right } = expr {
+            let op_unboxed = op.as_ref().clone();
+            let left_evaluated = self.evaluate(left.as_ref());
+            let right_evaluated = self.evaluate(right.as_ref());
+            let tuple = (right_evaluated, left_evaluated);
+            match op_unboxed {
+                Expression::Plus => match tuple {
+                    (Variable::Real, Variable::Real) => Variable::Real,
+                    (Variable::Integer, Variable::Integer) => Variable::Integer,
+                    (Variable::String, Variable::String) => Variable::String,
+                    (Variable::Real, Variable::Integer) => Variable::Real,
+                    _ => Variable::Error,
+                },
+                Expression::Minus | Expression::Multiply | Expression::Divide => match tuple {
+                    (Variable::Real, Variable::Real) => Variable::Real,
+                    (Variable::Integer, Variable::Integer) => Variable::Integer,
+                    (Variable::Real, Variable::Integer) => Variable::Real,
+                    (Variable::Integer, Variable::Real) => Variable::Real,
+                    _ => Variable::Error,
+                },
+                Expression::Modulo => match tuple {
+                    (Variable::Integer, Variable::Integer) => Variable::Integer,
+                    _ => Variable::Error,
+                },
+                Expression::Or | Expression::And => match tuple {
+                    (Variable::Boolean, Variable::Boolean) => Variable::Boolean,
+                    _ => Variable::Error,
+                },
+                Expression::Le | Expression::Leq | Expression::Ge | Expression::Geq => {
+                    match tuple {
+                        (Variable::Real, Variable::Real) => Variable::Boolean,
+                        (Variable::Integer, Variable::Integer) => Variable::Boolean,
+                        (Variable::Real, Variable::Integer) => Variable::Boolean,
+                        (Variable::Integer, Variable::Real) => Variable::Boolean,
+                        _ => Variable::Error,
+                    }
+                }
+                Expression::Inequality | Expression::Eq => match tuple {
+                    (Variable::Real, Variable::Real) => Variable::Boolean,
+                    (Variable::Integer, Variable::Integer) => Variable::Boolean,
+                    (Variable::Real, Variable::Integer) => Variable::Boolean,
+                    (Variable::Integer, Variable::Real) => Variable::Boolean,
+                    (Variable::Boolean, Variable::Boolean) => Variable::Boolean,
+                    _ => Variable::Error,
+                },
+                _ => Variable::Error,
+            }
+        } else {
+            Variable::Error
+        }
     }
 
     fn evaluate_function_call(&mut self, expr: &Expression) -> Variable {
