@@ -441,7 +441,6 @@ impl SemanticAnalyzer {
             Expression::RealLiteral { value: _ } => Variable::Real,
             Expression::StringLiteral { value: _ } => Variable::String,
             Expression::IntegerLiteral { value: _ } => Variable::Integer,
-            Expression::BooleanLiteral { value: _ } => Variable::Boolean,
             Expression::Variable { var } => self.evaluate_id(var),
             Expression::Function {
                 id: _,

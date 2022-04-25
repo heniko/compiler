@@ -3,7 +3,6 @@ mod expr_parser;
 use crate::scanner::{Token, TokenPosition};
 use expr_parser::ExpressionParser;
 use std::collections::VecDeque;
-use std::string::ParseError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum VariableType {
@@ -43,12 +42,6 @@ pub enum Statement {
     },
     Return {
         value: Expression,
-    },
-    Read {
-        ids: Vec<String>,
-    },
-    Write {
-        arguments: Vec<Expression>,
     },
     Assert {
         value: Expression,
@@ -101,9 +94,6 @@ pub enum Expression {
     RealLiteral {
         value: f32,
     },
-    BooleanLiteral {
-        value: bool,
-    },
     Function {
         id: String,
         arguments: Vec<Expression>,
@@ -147,23 +137,12 @@ pub enum AST {
         block: Statement,
         res_type: String,
     },
-    //Call { id: String, arguments: Vec<Expression> },
-    Parameters,
-    Parameter,
-    SimpleType,
-    ArrayType,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ParserError {
     pub position: Option<TokenPosition>,
     pub message: String,
-}
-
-impl ParserError {
-    pub fn from(position: Option<TokenPosition>, message: String) -> ParserError {
-        ParserError { position, message }
-    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -239,7 +218,7 @@ impl Parser {
         handle error. Return true if next token is the expected
         one and false if it is not.
          */
-        if let (Some(token), Some(position)) = self.peek() {
+        if let (Some(token), Some(_position)) = self.peek() {
             return if token.clone() == match_token {
                 self.pop(); // Consume expected token
                 true
@@ -272,7 +251,7 @@ impl Parser {
             return AST::Error;
         }
 
-        if let (Some(identifier)) = self.identifier() {
+        if let Some(identifier) = self.identifier() {
             id = identifier.clone();
         } else {
             self.parse_error(String::from("Expected identifier. [program()]"));
@@ -289,7 +268,7 @@ impl Parser {
         function/procedure to AST and if not move on
         and expect main block.
          */
-        while let (Some(token), Some(position)) = self.peek() {
+        while let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::Procedure => {
                     procedures.push(self.parse_procedure());
@@ -322,7 +301,7 @@ impl Parser {
 
         // Check what kind of statement we are starting
         // and call correct function to handle that case.
-        return if let (Some(token), Some(position)) = self.peek() {
+        return if let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::Begin => self.block(),
                 Token::While => self.while_statement(),
@@ -364,8 +343,8 @@ impl Parser {
 
         // Parse statements until we find one starting with Token::End.
         // Use statements() to reduce code duplication.
-        while let (Some(token), Some(position)) = self.peek() {
-            if let (Some(Token::End), Some(p)) = self.peek() {
+        while let (Some(_token), Some(_position)) = self.peek() {
+            if let (Some(Token::End), Some(_p)) = self.peek() {
                 break;
             } else {
                 statements.push(self.statement());
@@ -396,8 +375,8 @@ impl Parser {
 
         // Parse statements until we find one starting with Token::End.
         // Use statements() to reduce code duplication.
-        while let (Some(token), Some(position)) = self.peek() {
-            if let (Some(Token::End), Some(p)) = self.peek() {
+        while let (Some(_token), Some(_position)) = self.peek() {
+            if let (Some(Token::End), Some(_p)) = self.peek() {
                 break;
             } else {
                 statements.push(self.statement());
@@ -571,7 +550,7 @@ impl Parser {
         Checks if the statement is a call or assign and
         calls the correct handler to parse the statement.
          */
-        return if let (Some(token), Some(position)) = self.next() {
+        return if let (Some(token), Some(_position)) = self.next() {
             return match token {
                 Token::Assign => self.assign(),
                 Token::OpenParen => self.call(),
@@ -666,7 +645,7 @@ impl Parser {
             return AST::Error;
         }
 
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             id = value.clone();
             self.pop();
         } else {
@@ -682,7 +661,7 @@ impl Parser {
             return AST::Error;
         }
 
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             res_type = value.clone();
             self.pop();
         } else {
@@ -716,7 +695,7 @@ impl Parser {
             return AST::Error;
         }
 
-        if let (Some(Token::Variable { value }), Some(position)) = self.peek() {
+        if let (Some(Token::Variable { value }), Some(_position)) = self.peek() {
             id = value.clone();
             self.pop();
         } else {
@@ -887,7 +866,7 @@ impl Parser {
 
         let mut arguments = vec![];
 
-        while let (Some(token), Some(position)) = self.peek() {
+        while let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::Comma => {
                     self.pop();
@@ -939,7 +918,7 @@ impl Parser {
          */
         let mut paren_count = 0;
 
-        while let (Some(token), Some(position)) = self.peek() {
+        while let (Some(token), Some(_position)) = self.peek() {
             match token {
                 Token::OpenParen => {
                     paren_count += 1;
@@ -994,7 +973,7 @@ impl Parser {
                 Token::Not => {
                     expr_tokens.push(Expression::Not);
                 }
-                Token::Variable { value } => {
+                Token::Variable { value: _ } => {
                     expr_tokens.push(self.variable_or_function_expression());
                     continue; // Skip loop pop() to make things easier
                 }

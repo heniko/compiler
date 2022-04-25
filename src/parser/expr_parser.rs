@@ -77,46 +77,8 @@ impl ExpressionParser {
         if self.cursor.is_end() {
             Expression::None
         } else {
-            self.and()
+            self.comparison()
         }
-    }
-
-    fn and(&mut self) -> Expression {
-        /*
-        <and> ::= <and> "&" <equality>
-        <and> ::= <equality> "&" <equality>
-        <and> ::= <equality>
-         */
-        let mut expr = self.equality();
-
-        while self.cursor.matches(vec![Expression::And]) {
-            expr = Expression::Binary {
-                op: Box::from(self.cursor.previous()),
-                left: Box::from(expr),
-                right: Box::from(self.equality()),
-            }
-        }
-
-        expr
-    }
-
-    fn equality(&mut self) -> Expression {
-        /*
-        <equality> ::= <equality> "=" <comparison>
-        <equality> ::= <comparison> "=" <comparison>
-        <equality> ::= <comparison>
-         */
-        let mut expr = self.comparison();
-
-        while self.cursor.matches(vec![Expression::Eq]) {
-            expr = Expression::Binary {
-                op: Box::from(self.cursor.previous()),
-                left: Box::from(expr),
-                right: Box::from(self.comparison()),
-            }
-        }
-
-        expr
     }
 
     fn comparison(&mut self) -> Expression {
@@ -127,7 +89,14 @@ impl ExpressionParser {
          */
         let mut expr = self.term();
 
-        while self.cursor.matches(vec![Expression::Le]) {
+        while self.cursor.matches(vec![
+            Expression::Le,         // <
+            Expression::Eq,         // =
+            Expression::Leq,        // <=
+            Expression::Ge,         // >
+            Expression::Geq,        // >=
+            Expression::Inequality, // <>
+        ]) {
             expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
@@ -140,15 +109,15 @@ impl ExpressionParser {
 
     fn term(&mut self) -> Expression {
         /*
-        <term> ::= <term> "+" | "-"
-        <term> ::= <factor> "+" | "-" <factor>
+        <term> ::= <term> "+" | "-" | "or"
+        <term> ::= <factor> "+" | "-" | "or" <factor>
         <term> ::= <factor>
          */
         let mut expr = self.factor();
 
         while self
             .cursor
-            .matches(vec![Expression::Plus, Expression::Minus])
+            .matches(vec![Expression::Plus, Expression::Minus, Expression::Or])
         {
             expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
@@ -168,10 +137,12 @@ impl ExpressionParser {
          */
         let mut expr = self.unary();
 
-        while self
-            .cursor
-            .matches(vec![Expression::Multiply, Expression::Divide])
-        {
+        while self.cursor.matches(vec![
+            Expression::Multiply,
+            Expression::Divide,
+            Expression::Modulo,
+            Expression::And,
+        ]) {
             expr = Expression::Binary {
                 op: Box::from(self.cursor.previous()),
                 left: Box::from(expr),
@@ -189,7 +160,7 @@ impl ExpressionParser {
          */
         if self
             .cursor
-            .matches(vec![Expression::Not, Expression::Minus])
+            .matches(vec![Expression::Not, Expression::Minus, Expression::Plus])
         {
             let op = self.cursor.previous();
             let r = self.unary();
