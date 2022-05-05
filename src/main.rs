@@ -1,9 +1,11 @@
+mod code_generation;
 mod io;
 mod parser;
 mod scanner;
 mod semantic_analysis;
 
-use crate::io::{read_file, UserIO};
+use crate::code_generation::CodeGenerator;
+use crate::io::{read_file, write_file, UserIO};
 use crate::semantic_analysis::SemanticAnalyzer;
 use parser::Parser;
 use scanner::{Scanner, Token};
@@ -85,4 +87,8 @@ fn main() {
         }
         return;
     }
+
+    let code_gen = CodeGenerator::from(parser.ast.clone());
+
+    write_file("output.c", code_gen.source.clone());
 }
