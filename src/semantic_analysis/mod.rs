@@ -45,8 +45,46 @@ pub enum IdType {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct SemanticAnalyzer {
+pub struct Scope {
     pub scope: Vec<HashMap<String, IdType>>,
+}
+
+impl Scope {
+    pub fn add_local_scope(&mut self) {
+        self.scope.push(HashMap::new());
+    }
+
+    pub fn drop_local_scope(&mut self) {
+        self.scope.pop();
+    }
+
+    pub fn init_var(&mut self, id: String, var_type: IdType) {
+        self.scope
+            .last_mut() // Last local scope
+            .unwrap()
+            .insert(id, var_type);
+    }
+
+    pub fn access_var(&self, id: String) -> Option<IdType> {
+        /*
+        Search scopes starting from most recently added (For example the scope
+        of block after if statement) to least recently added (Global scope)
+        and return the type of first match.
+        */
+        for layer in self.scope.iter().rev() {
+            if layer.contains_key(&id) {
+                return Some(layer.get(&id).unwrap().clone());
+            }
+        }
+
+        // Not in scope
+        None
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct SemanticAnalyzer {
+    pub scope: Scope,
     return_type: Variable,
     pub errors: Vec<String>,
 }
@@ -111,7 +149,7 @@ impl SemanticAnalyzer {
         globals.insert(String::from("user_size"), IdType::SizeType);
 
         let mut res = SemanticAnalyzer {
-            scope: vec![globals],
+            scope: Scope {scope: vec![globals]},
             /*
             While parsing functions we need to check the type of
             the return statement. However, the return statement
@@ -162,65 +200,16 @@ impl SemanticAnalyzer {
                 /*
                 Do the semantic analysis of main-block.
                 */
-                self.add_local_scope();
+                self.scope.add_local_scope();
                 self.return_type = Variable::None;
                 self.check_statement(main);
-                self.drop_local_scope();
+                self.scope.drop_local_scope();
             }
             _ => {
                 self.errors
                     .push(String::from("AST does not contain program."));
             }
         }
-    }
-
-    /*
-    Adds new layer to current local scope. This happens
-    for example when a variable is created inside a loop
-    and it then needs to be dropped after the loop iteration
-    ends.
-     */
-    fn add_local_scope(&mut self) {
-        self.scope.push(HashMap::new());
-    }
-
-    /*
-    Drops a layer from the current local scope. For example
-    loops will add new layer to the local scope that then
-    needs to be dropped after the current iteration ends.
-     */
-    fn drop_local_scope(&mut self) {
-        self.scope.pop();
-    }
-
-    /*
-    'Initialize' (add type to current scope and layer) for some id.
-     */
-    fn init_var(&mut self, id: String, var_type: IdType) {
-        self.scope
-            .last_mut() // Last local scope
-            .unwrap()
-            .insert(id, var_type);
-    }
-
-    /*
-    'Access value' (resolve type) of the id. Look order:
-    Most recent local scope layer -> Least recent local scope layer, Global scope
-     */
-    fn access_var(&self, id: String) -> Option<IdType> {
-        /*
-        Search scopes starting from most recently added (For example the scope
-        of block after if statement) to least recently added (Global scope)
-        and return the type of first match.
-        */
-        for layer in self.scope.iter().rev() {
-            if layer.contains_key(&id) {
-                return Some(layer.get(&id).unwrap().clone());
-            }
-        }
-
-        // Not in scope
-        None
     }
 
     /*
@@ -247,7 +236,7 @@ impl SemanticAnalyzer {
                 })
             }
 
-            self.init_var(
+            self.scope.init_var(
                 id.clone(),
                 IdType::Function {
                     parameters: Parameters::List { parameters: params },
@@ -280,7 +269,7 @@ impl SemanticAnalyzer {
                 })
             }
 
-            self.init_var(
+            self.scope.init_var(
                 id.clone(),
                 IdType::Procedure {
                     parameters: Parameters::List { parameters: params },
@@ -326,7 +315,7 @@ impl SemanticAnalyzer {
         } = ast
         {
             // Create first local layer to scope
-            self.add_local_scope();
+            self.scope.add_local_scope();
             // Add arguments to first local variable layer
             for parameter in parameters.iter() {
                 let par_type = parameter.var_type.clone();
@@ -355,7 +344,7 @@ impl SemanticAnalyzer {
                     }
                 };
 
-                self.init_var(parameter.id.clone(), par_to_add);
+                self.scope.init_var(parameter.id.clone(), par_to_add);
             }
 
             // Check statements
@@ -363,7 +352,7 @@ impl SemanticAnalyzer {
             self.check_statement(block);
 
             // Drop function scope
-            self.drop_local_scope();
+            self.scope.drop_local_scope();
         }
     }
 
@@ -375,7 +364,7 @@ impl SemanticAnalyzer {
         } = ast
         {
             // Create first local layer to scope
-            self.add_local_scope();
+            self.scope.add_local_scope();
             // Add arguments to first local variable layer
             for parameter in parameters.iter() {
                 let par_type = parameter.var_type.clone();
@@ -404,7 +393,7 @@ impl SemanticAnalyzer {
                     }
                 };
 
-                self.init_var(parameter.id.clone(), par_to_add);
+                self.scope.init_var(parameter.id.clone(), par_to_add);
             }
 
             // Check statements
@@ -412,7 +401,7 @@ impl SemanticAnalyzer {
             self.check_statement(block);
 
             // Drop function scope
-            self.drop_local_scope();
+            self.scope.drop_local_scope();
         }
     }
 
@@ -446,7 +435,7 @@ impl SemanticAnalyzer {
                         _ => IdType::Error,
                     };
 
-                    self.init_var(variable.id.clone(), t);
+                    self.scope.init_var(variable.id.clone(), t);
                 }
             }
             Statement::Assignment { var, value } => {
@@ -454,7 +443,7 @@ impl SemanticAnalyzer {
 
                 match var {
                     VariableAccess::SimpleAccess { id } => {
-                        let access = self.access_var(id.clone());
+                        let access = self.scope.access_var(id.clone());
 
                         if let Some(t) = access {
                             if let IdType::SimpleType { var_type } = t {
@@ -476,7 +465,7 @@ impl SemanticAnalyzer {
                                 .push(String::from("Array index needs to be integer."));
                         }
 
-                        let access = self.access_var(id.clone());
+                        let access = self.scope.access_var(id.clone());
 
                         if let Some(t) = access {
                             if let IdType::ArrayType { var_type } = t {
@@ -498,11 +487,11 @@ impl SemanticAnalyzer {
                 }
             }
             Statement::Block { statements } => {
-                self.add_local_scope();
+                self.scope.add_local_scope();
                 for statement in statements.iter() {
                     self.check_statement(statement);
                 }
-                self.drop_local_scope();
+                self.scope.drop_local_scope();
             }
             Statement::While { value, statement } => {
                 if self.evaluate(value) != Variable::Boolean {
@@ -511,9 +500,9 @@ impl SemanticAnalyzer {
                     ));
                 }
 
-                self.add_local_scope();
+                self.scope.add_local_scope();
                 self.check_statement(statement);
-                self.drop_local_scope();
+                self.scope.drop_local_scope();
             }
             Statement::If { value, statement } => {
                 if self.evaluate(value) != Variable::Boolean {
@@ -522,9 +511,9 @@ impl SemanticAnalyzer {
                     ));
                 }
 
-                self.add_local_scope();
+                self.scope.add_local_scope();
                 self.check_statement(statement);
-                self.drop_local_scope();
+                self.scope.drop_local_scope();
             }
             Statement::IfElse {
                 value,
@@ -537,13 +526,13 @@ impl SemanticAnalyzer {
                     ));
                 }
 
-                self.add_local_scope();
+                self.scope.add_local_scope();
                 self.check_statement(if_statement);
-                self.drop_local_scope();
+                self.scope.drop_local_scope();
 
-                self.add_local_scope();
+                self.scope.add_local_scope();
                 self.check_statement(else_statement);
-                self.drop_local_scope();
+                self.scope.drop_local_scope();
             }
             _ => {}
         }
@@ -687,7 +676,7 @@ impl SemanticAnalyzer {
 
     fn evaluate_function_call(&mut self, expr: &Expression) -> Variable {
         if let Expression::Function { arguments, id } = expr {
-            let stored = self.access_var(id.clone());
+            let stored = self.scope.access_var(id.clone());
 
             return if let Some(IdType::Function {
                 parameters,
@@ -708,7 +697,7 @@ impl SemanticAnalyzer {
     fn evaluate_id(&mut self, var: &VariableAccess) -> Variable {
         return match var {
             VariableAccess::SimpleAccess { id } => {
-                let stored = self.access_var(id.clone());
+                let stored = self.scope.access_var(id.clone());
 
                 if let Some(v) = stored {
                     match v {
@@ -720,7 +709,7 @@ impl SemanticAnalyzer {
                 }
             }
             VariableAccess::ArrayAccess { id, index } => {
-                let stored = self.access_var(id.clone());
+                let stored = self.scope.access_var(id.clone());
 
                 if self.evaluate(index) != Variable::Integer {
                     self.errors
@@ -737,7 +726,7 @@ impl SemanticAnalyzer {
                 }
             }
             VariableAccess::SizeAccess { id } => {
-                let stored = self.access_var(id.clone());
+                let stored = self.scope.access_var(id.clone());
 
                 // TODO: Check that size is not redefined ion scope.
 
