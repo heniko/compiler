@@ -1,0 +1,9 @@
+program hello_world;
+
+begin
+  var r : real;
+  var s : array [1] of boolean;
+  var b : boolean;
+  var i : integer;
+  x := 30.73e2;
+end.
