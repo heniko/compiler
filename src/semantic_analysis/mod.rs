@@ -46,7 +46,7 @@ pub enum IdType {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct SemanticAnalyzer {
-    scope: Vec<HashMap<String, IdType>>,
+    pub scope: Vec<HashMap<String, IdType>>,
     return_type: Variable,
     pub errors: Vec<String>,
 }

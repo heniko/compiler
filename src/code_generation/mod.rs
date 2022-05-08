@@ -193,6 +193,33 @@ impl CodeGenerator {
                 let v = self.generate_var();
                 self.add_line(format!("char *{} = \"{}\";", v, value));
             }
+            Expression::Variable { var } => {
+                self.variable_access(var);
+            }
+            Expression::Unary { op, value } => {
+                todo!();
+            }
+            Expression::Binary { op, left, right } => {
+                todo!();
+            }
+            Expression::Function { id, arguments } => {
+                todo!();
+            }
+            _=>{}
+        }
+    }
+
+    fn variable_access(&mut self, var: &VariableAccess) {
+        match var {
+            VariableAccess::SizeAccess { id } => {
+                todo!();
+            }
+            VariableAccess::SimpleAccess { id } => {
+                todo!();
+            }
+            VariableAccess::ArrayAccess { id, index } => {
+                todo!();
+            }
             _=>{}
         }
     }
