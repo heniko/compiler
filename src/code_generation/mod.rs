@@ -36,6 +36,10 @@ impl CodeGenerator {
         self.var_count += 1;
         format!("var_{}", self.var_count)
     }
+
+    fn get_latest_var(&mut self) -> String {
+        format!("var_{}", self.var_count)
+    }
 }
 
 impl CodeGenerator {
@@ -111,7 +115,7 @@ impl CodeGenerator {
 
     fn block(&mut self, stmt: &Statement){
         self.add_line("{".to_string());
-
+        
         self.add_line("}".to_string());
     }
 
@@ -163,18 +167,43 @@ impl CodeGenerator {
             }
         }
     }
+}
 
-    fn expression(&mut self, id: &String, expr: &Expression) -> String {
-        return "1".to_string();
+// Functions for handling expressions
+impl CodeGenerator {
+    fn expression(&mut self, id: &String, expr: &Expression) {
+        self.add_line("{".to_string());
+        self.expression_recursion(expr);
+        let latest_var = self.get_latest_var();
+        self.add_line(format!("{} = &{};", id,latest_var));
+        self.add_line("}".to_string());
+    }
+
+    fn expression_recursion(&mut self, expr: &Expression) {
+        match expr {
+            Expression::IntegerLiteral { value } => {
+                let v = self.generate_var();
+                self.add_line(format!("int {} = {};", v, value));
+            }
+            Expression::RealLiteral { value } => {
+                let v = self.generate_var();
+                self.add_line(format!("float {} = {};",v,value));
+            }
+            Expression::StringLiteral { value }=>{
+                let v = self.generate_var();
+                self.add_line(format!("char *{} = \"{}\";", v, value));
+            }
+            _=>{}
+        }
     }
 }
 
 fn to_c_type(s: &String) -> String {
     match s.as_str() {
-        "integer" => "int".to_string(),
-        "real" => "float".to_string(),
-        "boolean" => "bool".to_string(),
-        "string" => "char".to_string(),
+        "user_integer" => "int".to_string(),
+        "user_real" => "float".to_string(),
+        "user_boolean" => "bool".to_string(),
+        "user_string" => "char".to_string(),
         _ => "INVALID_TYPE".to_string(),
     }
 }

@@ -61,54 +61,54 @@ impl SemanticAnalyzer {
 
         // Add all predefined globals identifiers
         globals.insert(
-            String::from("boolean"),
+            String::from("user_boolean"),
             IdType::TypeType {
                 var_type: Variable::String,
             },
         );
         globals.insert(
-            String::from("integer"),
+            String::from("user_integer"),
             IdType::TypeType {
                 var_type: Variable::Integer,
             },
         );
         globals.insert(
-            String::from("real"),
+            String::from("user_real"),
             IdType::TypeType {
                 var_type: Variable::Real,
             },
         );
         globals.insert(
-            String::from("string"),
+            String::from("user_string"),
             IdType::TypeType {
                 var_type: Variable::String,
             },
         );
         globals.insert(
-            String::from("false"),
+            String::from("user_false"),
             IdType::SimpleType {
                 var_type: Variable::Boolean,
             },
         );
         globals.insert(
-            String::from("true"),
+            String::from("user_true"),
             IdType::SimpleType {
                 var_type: Variable::Boolean,
             },
         );
         globals.insert(
-            String::from("read"),
+            String::from("user_read"),
             IdType::Procedure {
                 parameters: Parameters::Any,
             },
         );
         globals.insert(
-            String::from("writeln"),
+            String::from("user_writeln"),
             IdType::Procedure {
                 parameters: Parameters::Any,
             },
         );
-        globals.insert(String::from("size"), IdType::SizeType);
+        globals.insert(String::from("user_size"), IdType::SizeType);
 
         let mut res = SemanticAnalyzer {
             scope: vec![globals],
@@ -291,20 +291,20 @@ impl SemanticAnalyzer {
 
     fn string_to_atomic(&self, s: &String) -> Variable {
         match s.as_str() {
-            "string" => Variable::String,
-            "integer" => Variable::Integer,
-            "real" => Variable::Real,
-            "boolean" => Variable::Boolean,
+            "user_string" => Variable::String,
+            "user_integer" => Variable::Integer,
+            "user_real" => Variable::Real,
+            "user_boolean" => Variable::Boolean,
             _ => Variable::Error,
         }
     }
 
     fn string_to_atomic_arr(&self, s: &String) -> Variable {
         match s.as_str() {
-            "string" => Variable::StringArray,
-            "integer" => Variable::IntegerArray,
-            "real" => Variable::RealArray,
-            "boolean" => Variable::BooleanArray,
+            "user_string" => Variable::StringArray,
+            "user_integer" => Variable::IntegerArray,
+            "user_real" => Variable::RealArray,
+            "user_boolean" => Variable::BooleanArray,
             _ => Variable::Error,
         }
     }
