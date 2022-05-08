@@ -88,7 +88,7 @@ fn main() {
         return;
     }
 
-    let code_gen = CodeGenerator::from(parser.ast.clone());
+    let code_gen = CodeGenerator::from(parser.ast.clone(), semantic_analyzer.scope.clone());
 
     write_file("output.c", code_gen.source.clone());
 }

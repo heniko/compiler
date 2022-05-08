@@ -1,18 +1,21 @@
 use crate::parser::{
-    Expression, Statement, VariableAccess, VariableDeclaration, VariableType, AST,
+    Expression, Statement, VariableAccess, VariableDeclaration, VariableType, AST
 };
+use crate::semantic_analysis::{Scope};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CodeGenerator {
     pub source: String,
     pub var_count: i32,
+    scope: Scope,
 }
 
 impl CodeGenerator {
-    pub fn from(ast: AST) -> CodeGenerator {
+    pub fn from(ast: AST, scope: Scope) -> CodeGenerator {
         let mut code_gen = CodeGenerator {
             source: String::new(),
             var_count: 0,
+            scope
         };
         code_gen.generate(&ast);
         code_gen
