@@ -1,7 +1,7 @@
 use crate::parser::{
     Expression, Statement, VariableAccess, VariableDeclaration, VariableType, AST
 };
-use crate::semantic_analysis::{Scope};
+use crate::semantic_analysis::{Scope, IdType, Variable};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CodeGenerator {
@@ -96,6 +96,7 @@ impl CodeGenerator {
     }
 
     fn generate_main(&mut self, main: &Statement) {
+        self.scope.add_local_scope();
         self.add_line("int main(){".to_string());
 
         if let Statement::Block { statements } = main {
@@ -106,20 +107,42 @@ impl CodeGenerator {
 
         self.add_line("return 0;".to_string());
         self.add_line("}".to_string());
+        self.scope.drop_local_scope();
     }
 
     fn statement(&mut self, stmt: &Statement) {
         match stmt {
             Statement::Block { statements:_ }=>self.block(stmt),
             Statement::VariableDeclaration { variables:_ } => self.variable_declaration(stmt),
+            Statement::Assignment { var:_, value:_ } => self.assignment(stmt),
             _=>{}
         }
     }
 
+    fn assignment(&mut self, stmt:&Statement){
+        if let Statement::Assignment { var, value } = stmt {
+            match var {
+                VariableAccess::SimpleAccess { id } => {
+                    self.expression(id, value);
+                }
+                VariableAccess::ArrayAccess { id, index } => {
+                    let i = self.generate_var();
+                    self.add_line(format!("int *{} = NULL;", i));
+                    self.expression(&i, index.as_ref());
+                    self.expression(&format!("{}[*{}]", id, i), value);
+                }
+                _=>{}
+            }
+            
+        }
+    }
+
     fn block(&mut self, stmt: &Statement){
+        self.scope.add_local_scope();
         self.add_line("{".to_string());
         
         self.add_line("}".to_string());
+        self.scope.drop_local_scope();
     }
 
     fn variable_declaration(&mut self, stmt:&Statement) {
@@ -132,6 +155,7 @@ impl CodeGenerator {
                 match var_type {
                     VariableType::SimpleType { var_type } => {
                         self.add_line(format!("{} *{} = NULL;", to_c_type(&var_type), dec.id.clone()));
+                        self.scope.init_var(dec.id.clone(), IdType::SimpleType{var_type:self.scope.string_to_atomic(&var_type)});
                     }
                     VariableType::ArrayType { var_type, size}=>{
                         /*
@@ -161,9 +185,11 @@ impl CodeGenerator {
                                 self.add_line(format!("{} *{}[*{}];", to_c_type(&var_type), dec.id.clone(), size_var));
                             }
                             _=>{
-                                self.add_line(format!("{} {}[*{}];", to_c_type(&var_type), dec.id.clone(), size_var));
+                                self.add_line(format!("{} *{}[*{}];", to_c_type(&var_type), dec.id.clone(), size_var));
                             }
                         }
+
+                        self.scope.init_var(dec.id.clone(), IdType::ArrayType{var_type:self.scope.string_to_atomic(&var_type)});
                     }
                     _ => {}
                 }
@@ -175,11 +201,13 @@ impl CodeGenerator {
 // Functions for handling expressions
 impl CodeGenerator {
     fn expression(&mut self, id: &String, expr: &Expression) {
+        self.scope.add_local_scope();
         self.add_line("{".to_string());
         self.expression_recursion(expr);
         let latest_var = self.get_latest_var();
-        self.add_line(format!("{} = &{};", id,latest_var));
+        self.add_line(format!("{} = &{};", id, latest_var));
         self.add_line("}".to_string());
+        self.scope.drop_local_scope();
     }
 
     fn expression_recursion(&mut self, expr: &Expression) {
@@ -187,20 +215,34 @@ impl CodeGenerator {
             Expression::IntegerLiteral { value } => {
                 let v = self.generate_var();
                 self.add_line(format!("int {} = {};", v, value));
+                self.scope.init_var(v, IdType::SimpleType { var_type: Variable::Integer });
             }
             Expression::RealLiteral { value } => {
                 let v = self.generate_var();
                 self.add_line(format!("float {} = {};",v,value));
+                self.scope.init_var(v, IdType::SimpleType { var_type: Variable::Real });
             }
             Expression::StringLiteral { value }=>{
                 let v = self.generate_var();
                 self.add_line(format!("char *{} = \"{}\";", v, value));
+                self.scope.init_var(v, IdType::SimpleType { var_type: Variable::String });
             }
             Expression::Variable { var } => {
                 self.variable_access(var);
             }
             Expression::Unary { op, value } => {
-                todo!();
+                self.expression_recursion(value);
+                let l = self.get_latest_var();
+                let v = self.generate_var();
+                match op.as_ref() {
+                    Expression::Not => {
+                        self.add_line(format!("{} = !{};", v, l));
+                    }
+                    Expression::Minus => {
+                        todo!();
+                    }
+                    _=>{}
+                }
             }
             Expression::Binary { op, left, right } => {
                 todo!();
@@ -215,10 +257,29 @@ impl CodeGenerator {
     fn variable_access(&mut self, var: &VariableAccess) {
         match var {
             VariableAccess::SizeAccess { id } => {
-                todo!();
+                let v = self.generate_var();
+                self.add_line(format!("int {} = sizeof({}) / sizeof({}[0]);", v, id, id));
             }
             VariableAccess::SimpleAccess { id } => {
-                todo!();
+                let t = self.scope.access_var(id.clone()).unwrap();
+                let v = self.generate_var();
+                if let IdType::SimpleType { var_type } = t {
+                    match var_type {
+                        Variable::Integer => {
+                            self.add_line(format!("int {} = *{};", v, id));
+                        }
+                        Variable::Boolean => {
+                            self.add_line(format!("bool {} = *{};", v, id));
+                        }
+                        Variable::Real => {
+                            self.add_line(format!("float {} = *{};", v, id));
+                        }
+                        Variable::String => {
+                            self.add_line(format!("char *{} = *{};", v, id));
+                        }
+                        _ => {}
+                    }
+                }
             }
             VariableAccess::ArrayAccess { id, index } => {
                 todo!();

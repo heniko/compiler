@@ -1,9 +1,11 @@
 program hello_world;
 
 begin
-  var r : real;
-  var s : array [1] of boolean;
-  var b : boolean;
   var i : integer;
-  x := 30.73e2;
+  i := 3;
+  var j : integer;
+  j := i;
+  var arr : array [2] of integer;
+  arr[0] := 1;
+  arr[1] := 2;
 end.

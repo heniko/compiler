@@ -80,6 +80,26 @@ impl Scope {
         // Not in scope
         None
     }
+
+    pub fn string_to_atomic(&self, s: &String) -> Variable {
+        match s.as_str() {
+            "user_string" => Variable::String,
+            "user_integer" => Variable::Integer,
+            "user_real" => Variable::Real,
+            "user_boolean" => Variable::Boolean,
+            _ => Variable::Error,
+        }
+    }
+
+    pub fn string_to_atomic_arr(&self, s: &String) -> Variable {
+        match s.as_str() {
+            "user_string" => Variable::StringArray,
+            "user_integer" => Variable::IntegerArray,
+            "user_real" => Variable::RealArray,
+            "user_boolean" => Variable::BooleanArray,
+            _ => Variable::Error,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -229,9 +249,9 @@ impl SemanticAnalyzer {
                 let p_var = p.var_type.clone();
                 params.push(match p_var {
                     VariableType::ArrayType { var_type, size: _ } => {
-                        self.string_to_atomic_arr(&var_type)
+                        self.scope.string_to_atomic_arr(&var_type)
                     }
-                    VariableType::SimpleType { var_type } => self.string_to_atomic(&var_type),
+                    VariableType::SimpleType { var_type } => self.scope.string_to_atomic(&var_type),
                     _ => Variable::Error,
                 })
             }
@@ -240,7 +260,7 @@ impl SemanticAnalyzer {
                 id.clone(),
                 IdType::Function {
                     parameters: Parameters::List { parameters: params },
-                    return_type: self.string_to_atomic(res_type),
+                    return_type: self.scope.string_to_atomic(res_type),
                 },
             )
         }
@@ -262,9 +282,9 @@ impl SemanticAnalyzer {
                 let p_var = p.var_type.clone();
                 params.push(match p_var {
                     VariableType::ArrayType { var_type, size: _ } => {
-                        self.string_to_atomic_arr(&var_type)
+                        self.scope.string_to_atomic_arr(&var_type)
                     }
-                    VariableType::SimpleType { var_type } => self.string_to_atomic(&var_type),
+                    VariableType::SimpleType { var_type } => self.scope.string_to_atomic(&var_type),
                     _ => Variable::Error,
                 })
             }
@@ -275,26 +295,6 @@ impl SemanticAnalyzer {
                     parameters: Parameters::List { parameters: params },
                 },
             )
-        }
-    }
-
-    fn string_to_atomic(&self, s: &String) -> Variable {
-        match s.as_str() {
-            "user_string" => Variable::String,
-            "user_integer" => Variable::Integer,
-            "user_real" => Variable::Real,
-            "user_boolean" => Variable::Boolean,
-            _ => Variable::Error,
-        }
-    }
-
-    fn string_to_atomic_arr(&self, s: &String) -> Variable {
-        match s.as_str() {
-            "user_string" => Variable::StringArray,
-            "user_integer" => Variable::IntegerArray,
-            "user_real" => Variable::RealArray,
-            "user_boolean" => Variable::BooleanArray,
-            _ => Variable::Error,
         }
     }
 }
@@ -322,7 +322,7 @@ impl SemanticAnalyzer {
 
                 let par_to_add = match par_type {
                     VariableType::SimpleType { var_type } => IdType::SimpleType {
-                        var_type: self.string_to_atomic(&var_type),
+                        var_type: self.scope.string_to_atomic(&var_type),
                     },
                     VariableType::ArrayType { var_type, size } => {
                         /*
@@ -334,7 +334,7 @@ impl SemanticAnalyzer {
                                 .push(String::from("Array parameter size can't be predefined."));
                         }
                         IdType::ArrayType {
-                            var_type: self.string_to_atomic(&var_type),
+                            var_type: self.scope.string_to_atomic(&var_type),
                         }
                     }
                     _ => {
@@ -348,7 +348,7 @@ impl SemanticAnalyzer {
             }
 
             // Check statements
-            self.return_type = self.string_to_atomic(res_type);
+            self.return_type = self.scope.string_to_atomic(res_type);
             self.check_statement(block);
 
             // Drop function scope
@@ -371,7 +371,7 @@ impl SemanticAnalyzer {
 
                 let par_to_add = match par_type {
                     VariableType::SimpleType { var_type } => IdType::SimpleType {
-                        var_type: self.string_to_atomic(&var_type),
+                        var_type: self.scope.string_to_atomic(&var_type),
                     },
                     VariableType::ArrayType { var_type, size } => {
                         /*
@@ -383,7 +383,7 @@ impl SemanticAnalyzer {
                                 .push(String::from("Array parameter size can't be predefined."));
                         }
                         IdType::ArrayType {
-                            var_type: self.string_to_atomic(&var_type),
+                            var_type: self.scope.string_to_atomic(&var_type),
                         }
                     }
                     _ => {
@@ -419,7 +419,7 @@ impl SemanticAnalyzer {
                 for variable in variables.iter() {
                     let t = match variable.var_type.clone() {
                         VariableType::SimpleType { var_type } => IdType::SimpleType {
-                            var_type: self.string_to_atomic(&var_type),
+                            var_type: self.scope.string_to_atomic(&var_type),
                         },
                         VariableType::ArrayType { var_type, size } => {
                             // Check that array size is integer
@@ -429,7 +429,7 @@ impl SemanticAnalyzer {
                             }
 
                             IdType::ArrayType {
-                                var_type: self.string_to_atomic(&var_type),
+                                var_type: self.scope.string_to_atomic(&var_type),
                             }
                         }
                         _ => IdType::Error,

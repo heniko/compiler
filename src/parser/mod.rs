@@ -553,6 +553,7 @@ impl Parser {
         return if let (Some(token), Some(_position)) = self.next() {
             return match token {
                 Token::Assign => self.assign(),
+                Token::OpenBracket => self.assign(),
                 Token::OpenParen => self.call(),
                 _ => {
                     // Not assign or call so we don't know what it is
