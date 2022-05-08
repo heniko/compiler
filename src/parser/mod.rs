@@ -1119,7 +1119,7 @@ impl Parser {
                     self.pop();
 
                     if let Some(identifier) = self.identifier() {
-                        if identifier.as_str() == "size" {
+                        if identifier.as_str() == "user_size" {
                             return VariableAccess::SizeAccess { id };
                         }
                     }
