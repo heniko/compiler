@@ -1,11 +1,9 @@
 program hello_world;
 
 begin
-  var i : integer;
-  i := 3;
-  var j : integer;
-  j := i;
-  var arr : array [2] of integer;
-  arr[0] := 1;
-  arr[1] := 2;
+  var arr : array [4] of integer;
+  arr[0] := 2;
+  arr[1] := 0;
+  arr[2] := arr[1];
+  arr[3] := arr[arr[1]];
 end.

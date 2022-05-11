@@ -31,6 +31,12 @@ impl CodeGenerator {
         self.add_line("#include <stdio.h>".to_string());
         self.add_line("#include <stdbool.h>".to_string());
         self.add_line("".to_string());
+        /*
+        TODO: user_true and user_false can be overwritten
+        */
+        self.add_line("bool *user_true = NULL;".to_string());
+        self.add_line("bool *user_false = NULL;".to_string());
+        self.add_line("".to_string());
         self.create_forward_declarations(ast);
         self.add_line("".to_string());
     }
@@ -98,6 +104,12 @@ impl CodeGenerator {
     fn generate_main(&mut self, main: &Statement) {
         self.scope.add_local_scope();
         self.add_line("int main(){".to_string());
+        // TODO: these variables need to be optional if overwritten
+        self.add_line("bool define_true = true;".to_string());
+        self.add_line("user_true = &define_true;".to_string());
+        self.add_line("bool define_false = false;".to_string());
+        self.add_line("user_false = &define_false;".to_string());
+        self.add_line("".to_string());
 
         if let Statement::Block { statements } = main {
             for stmt in statements.iter(){
@@ -202,11 +214,9 @@ impl CodeGenerator {
 impl CodeGenerator {
     fn expression(&mut self, id: &String, expr: &Expression) {
         self.scope.add_local_scope();
-        self.add_line("{".to_string());
         self.expression_recursion(expr);
         let latest_var = self.get_latest_var();
         self.add_line(format!("{} = &{};", id, latest_var));
-        self.add_line("}".to_string());
         self.scope.drop_local_scope();
     }
 
@@ -282,7 +292,28 @@ impl CodeGenerator {
                 }
             }
             VariableAccess::ArrayAccess { id, index } => {
-                todo!();
+                let i = self.generate_var();
+                self.add_line(format!("int *{} = NULL;", i));
+                self.expression(&i, index.as_ref());
+                let t = self.scope.access_var(id.clone()).unwrap();
+                let v = self.generate_var();
+                if let IdType::ArrayType { var_type } = t {
+                    match var_type {
+                        Variable::Integer => {
+                            self.add_line(format!("int {} = *{}[*{}];", v, id, i));
+                        }
+                        Variable::Boolean => {
+                            self.add_line(format!("bool {} = *{}[*{}];", v, id, i));
+                        }
+                        Variable::Real => {
+                            self.add_line(format!("float {} = *{}[*{}];", v, id, i));
+                        }
+                        Variable::String => {
+                            self.add_line(format!("char *{} = *{}[*{}];", v, id, i));
+                        }
+                        _ => {}
+                    }
+                }
             }
             _=>{}
         }
@@ -313,7 +344,7 @@ fn to_c_parameters(params: &Vec<VariableDeclaration>) -> String {
                 res.push_str(format!("{} *{}", to_c_type(&var_type), param.id.clone()).as_str());
             }
             VariableType::ArrayType { var_type, size: _ } => {
-                res.push_str(format!("{} {}[]", to_c_type(&var_type), param.id.clone()).as_str());
+                res.push_str(format!("{} *{}[]", to_c_type(&var_type), param.id.clone()).as_str());
             }
             _ => {}
         }
