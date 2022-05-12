@@ -34,8 +34,8 @@ impl CodeGenerator {
         /*
         TODO: user_true and user_false can be overwritten
         */
-        self.add_line("bool *user_true = NULL;".to_string());
-        self.add_line("bool *user_false = NULL;".to_string());
+        self.add_line("bool user_true = true;".to_string());
+        self.add_line("bool user_false = false;".to_string());
         self.add_line("".to_string());
         self.create_forward_declarations(ast);
         self.add_line("".to_string());
@@ -104,12 +104,6 @@ impl CodeGenerator {
     fn generate_main(&mut self, main: &Statement) {
         self.scope.add_local_scope();
         self.add_line("int main(){".to_string());
-        // TODO: these variables need to be optional if overwritten
-        self.add_line("bool define_true = true;".to_string());
-        self.add_line("user_true = &define_true;".to_string());
-        self.add_line("bool define_false = false;".to_string());
-        self.add_line("user_false = &define_false;".to_string());
-        self.add_line("".to_string());
 
         if let Statement::Block { statements } = main {
             for stmt in statements.iter(){
@@ -142,9 +136,9 @@ impl CodeGenerator {
                 }
                 VariableAccess::ArrayAccess { id, index } => {
                     let i = self.generate_var();
-                    self.add_line(format!("int *{} = NULL;", i));
+                    self.add_line(format!("int {};", i));
                     self.expression(&i, index.as_ref());
-                    self.expression(&format!("{}[*{}]", id, i), value);
+                    self.expression(&format!("{}[{}]", id, i), value);
                 }
                 _=>{}
             }
@@ -169,38 +163,20 @@ impl CodeGenerator {
                 // Check if we are handling simple or array type
                 match var_type {
                     VariableType::SimpleType { var_type } => {
-                        self.add_line(format!("{} *{} = NULL;", to_c_type(&var_type), dec.id.clone()));
+                        self.add_line(format!("{} {};", to_c_type(&var_type), dec.id.clone()));
                         self.scope.init_var(dec.id.clone(), IdType::SimpleType{var_type:self.scope.string_to_atomic(&var_type)});
                     }
                     VariableType::ArrayType { var_type, size}=>{
-                        /*
-                        First generate temporary variable for holding the
-                        size of the array. Then generate code to calculate
-                        the value of the variable. Then use the variable
-                        as array size parameter. Example generated code
-                        could look like:
-
-                        ...
-                        int *var_12 = NULL;
-                        {
-                            int var_13 = 21;
-                            int var_14 = 31;
-                            int var_15 = var_13 + var_14;
-                            var_12 = &var_15;
-                        }
-                        int user_arr[*var_12];
-                        ...
-                        */
                         let size_var = self.generate_var();
-                        self.add_line(format!("int *{} = NULL;", size_var));
+                        self.add_line(format!("int {};", size_var));
                         self.expression(&size_var, &size);
 
                         match var_type.as_str() {
                             "string" => {
-                                self.add_line(format!("{} *{}[*{}];", to_c_type(&var_type), dec.id.clone(), size_var));
+                                self.add_line(format!("{} {}[{}];", to_c_type(&var_type), dec.id.clone(), size_var));
                             }
                             _=>{
-                                self.add_line(format!("{} *{}[*{}];", to_c_type(&var_type), dec.id.clone(), size_var));
+                                self.add_line(format!("{} {}[{}];", to_c_type(&var_type), dec.id.clone(), size_var));
                             }
                         }
 
@@ -220,12 +196,12 @@ impl CodeGenerator {
             if the condition is false.
             */
             let condition = self.generate_var();
-            self.add_line(format!("bool *{} = NULL;", condition));
+            self.add_line(format!("bool {};", condition));
             self.expression(&condition, value);
             let end = self.generate_var();
             self.add_line(format!("if (!{}) goto {};", condition, end));
             self.statement(statement.as_ref());
-            self.add_line(format!("{}:", end));
+            self.add_line(format!("{}:;", end));
         }
     }
 
@@ -233,7 +209,7 @@ impl CodeGenerator {
         if let Statement::IfElse { value, if_statement, else_statement } = stmt {
             // Evaluate condition
             let condition = self.generate_var();
-            self.add_line(format!("bool *{} = NULL;", condition));
+            self.add_line(format!("bool {};", condition));
             self.expression(&condition, value);
             // Create jump point variables
             let els = self.generate_var();
@@ -244,10 +220,10 @@ impl CodeGenerator {
             self.statement(if_statement);
             self.add_line(format!("goto {};", end));
             // Generate code for else
-            self.add_line(format!("{}:", els));
+            self.add_line(format!("{}:;", els));
             self.statement(else_statement);
             // Add end jump point for exiting if block
-            self.add_line(format!("{}:", end));
+            self.add_line(format!("{}:;", end));
         }
     }
 
@@ -256,10 +232,12 @@ impl CodeGenerator {
             // Create variables for start and end jump points
             let end = self.generate_var();
             let start = self.generate_var();
-            // Jump point for loop start
-            self.add_line(format!("{}:", start));
-            // Evaluate condition
+            // Init condition variable
             let condition = self.generate_var();
+            self.add_line(format!("bool {};", condition));
+            // Jump point for loop start
+            self.add_line(format!("{}:;", start));
+            // Evaluate condition
             self.expression(&condition, value);
             // If condition is false then jump out
             self.add_line(format!("if (!{}) goto {};", condition, end));
@@ -268,7 +246,7 @@ impl CodeGenerator {
             // Jump back to beginning of the loop
             self.add_line(format!("goto {};", start));
             // Jump point for exiting loop
-            self.add_line(format!("{}:", end));
+            self.add_line(format!("{}:;", end));
         }
     }
 }
@@ -276,11 +254,12 @@ impl CodeGenerator {
 // Functions for handling expressions
 impl CodeGenerator {
     fn expression(&mut self, id: &String, expr: &Expression) {
-        self.scope.add_local_scope();
+        // Solve expression with expression_recursion()
         self.expression_recursion(expr);
+        // Get temporary variable name where value is in
         let latest_var = self.get_latest_var();
-        self.add_line(format!("{} = &{};", id, latest_var));
-        self.scope.drop_local_scope();
+        // Store the value from temporary variable
+        self.add_line(format!("{} = {};", id, latest_var));
     }
 
     fn expression_recursion(&mut self, expr: &Expression) {
@@ -297,7 +276,7 @@ impl CodeGenerator {
             }
             Expression::StringLiteral { value }=>{
                 let v = self.generate_var();
-                self.add_line(format!("char *{} = \"{}\";", v, value));
+                self.add_line(format!("char* {} = \"{}\";", v, value));
                 self.scope.init_var(v, IdType::SimpleType { var_type: Variable::String });
             }
             Expression::Variable { var } => {
@@ -339,16 +318,16 @@ impl CodeGenerator {
                 if let IdType::SimpleType { var_type } = t {
                     match var_type {
                         Variable::Integer => {
-                            self.add_line(format!("int {} = *{};", v, id));
+                            self.add_line(format!("int {} = {};", v, id));
                         }
                         Variable::Boolean => {
-                            self.add_line(format!("bool {} = *{};", v, id));
+                            self.add_line(format!("bool {} = {};", v, id));
                         }
                         Variable::Real => {
-                            self.add_line(format!("float {} = *{};", v, id));
+                            self.add_line(format!("float {} = {};", v, id));
                         }
                         Variable::String => {
-                            self.add_line(format!("char *{} = *{};", v, id));
+                            self.add_line(format!("char* {} = {};", v, id));
                         }
                         _ => {}
                     }
@@ -356,23 +335,23 @@ impl CodeGenerator {
             }
             VariableAccess::ArrayAccess { id, index } => {
                 let i = self.generate_var();
-                self.add_line(format!("int *{} = NULL;", i));
+                self.add_line(format!("int {};", i));
                 self.expression(&i, index.as_ref());
                 let t = self.scope.access_var(id.clone()).unwrap();
                 let v = self.generate_var();
                 if let IdType::ArrayType { var_type } = t {
                     match var_type {
                         Variable::Integer => {
-                            self.add_line(format!("int {} = *{}[*{}];", v, id, i));
+                            self.add_line(format!("int {} = {}[{}];", v, id, i));
                         }
                         Variable::Boolean => {
-                            self.add_line(format!("bool {} = *{}[*{}];", v, id, i));
+                            self.add_line(format!("bool {} = {}[{}];", v, id, i));
                         }
                         Variable::Real => {
-                            self.add_line(format!("float {} = *{}[*{}];", v, id, i));
+                            self.add_line(format!("float {} = {}[{}];", v, id, i));
                         }
                         Variable::String => {
-                            self.add_line(format!("char *{} = *{}[*{}];", v, id, i));
+                            self.add_line(format!("char* {} = {}[{}];", v, id, i));
                         }
                         _ => {}
                     }
@@ -388,7 +367,7 @@ fn to_c_type(s: &String) -> String {
         "user_integer" => "int".to_string(),
         "user_real" => "float".to_string(),
         "user_boolean" => "bool".to_string(),
-        "user_string" => "char".to_string(),
+        "user_string" => "char*".to_string(),
         _ => "INVALID_TYPE".to_string(),
     }
 }
@@ -404,10 +383,10 @@ fn to_c_parameters(params: &Vec<VariableDeclaration>) -> String {
 
         match param.var_type.clone() {
             VariableType::SimpleType { var_type } => {
-                res.push_str(format!("{} *{}", to_c_type(&var_type), param.id.clone()).as_str());
+                res.push_str(format!("{}* {}", to_c_type(&var_type), param.id.clone()).as_str());
             }
             VariableType::ArrayType { var_type, size: _ } => {
-                res.push_str(format!("{} *{}[]", to_c_type(&var_type), param.id.clone()).as_str());
+                res.push_str(format!("{}* {}[]", to_c_type(&var_type), param.id.clone()).as_str());
             }
             _ => {}
         }

@@ -622,7 +622,9 @@ impl Scanner {
             "program" => Token::Program,
             "assert" => Token::Assert,
             "return" => Token::Return,
-            _ => Token::Variable { value: format!("user_{}", s) },
+            _ => Token::Variable {
+                value: format!("user_{}", s),
+            },
         };
     }
 }

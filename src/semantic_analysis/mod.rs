@@ -169,7 +169,9 @@ impl SemanticAnalyzer {
         globals.insert(String::from("user_size"), IdType::SizeType);
 
         let mut res = SemanticAnalyzer {
-            scope: Scope {scope: vec![globals]},
+            scope: Scope {
+                scope: vec![globals],
+            },
             /*
             While parsing functions we need to check the type of
             the return statement. However, the return statement
