@@ -1,11 +1,11 @@
 program hello_world;
 
+procedure Swap (var i : integer, var j : integer, var s : string);
 begin
-  var arr : array [4] of integer;
-  arr[0] := 2;
-  arr[1] := 0;
-  arr[2] := arr[1];
-  arr[3] := arr[arr[1]];
-  if true then arr[1] := 2; 
-  else arr[1] := 1;
+  var tmp : integer;
+  tmp := i; i := j; j := tmp;
+end;
+
+begin
+  var i : integer;
 end.

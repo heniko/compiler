@@ -102,21 +102,21 @@ impl CodeGenerator {
     }
 
     fn generate_main(&mut self, main: &Statement) {
+        // Add local scope for main function
         self.scope.add_local_scope();
+        // Create main function
         self.add_line("int main(){".to_string());
-
-        if let Statement::Block { statements } = main {
-            for stmt in statements.iter() {
-                self.statement(stmt);
-            }
-        }
-
+        // Generate code for statements
+        self.statement(main);
+        // Return 0 as is expected by C (but not by MiniPL)
         self.add_line("return 0;".to_string());
         self.add_line("}".to_string());
+        // Drop local scope
         self.scope.drop_local_scope();
     }
 
     fn statement(&mut self, stmt: &Statement) {
+        // Match statement type and call correct handler
         match stmt {
             Statement::Block { statements: _ } => self.block(stmt),
             Statement::VariableDeclaration { variables: _ } => self.variable_declaration(stmt),
@@ -140,14 +140,17 @@ impl CodeGenerator {
 
     fn assignment(&mut self, stmt: &Statement) {
         if let Statement::Assignment { var, value } = stmt {
+            // Check if we are accessing normal variable or an array
             match var {
                 VariableAccess::SimpleAccess { id } => {
                     self.expression(id, value);
                 }
                 VariableAccess::ArrayAccess { id, index } => {
+                    // Evaluate index
                     let i = self.generate_var();
                     self.add_line(format!("int {};", i));
                     self.expression(&i, index.as_ref());
+                    // Evaluate value expression and assign it to evaluated array index
                     self.expression(&format!("{}[{}]", id, i), value);
                 }
                 _ => {}
@@ -156,11 +159,12 @@ impl CodeGenerator {
     }
 
     fn block(&mut self, stmt: &Statement) {
-        self.scope.add_local_scope();
-        self.add_line("{".to_string());
-
-        self.add_line("}".to_string());
-        self.scope.drop_local_scope();
+        // Iteratively generate code for all statements in block
+        if let Statement::Block { statements } = stmt {
+            for statement in statements.iter() {
+                self.statement(statement);
+            }
+        }
     }
 
     fn variable_declaration(&mut self, stmt: &Statement) {
@@ -432,10 +436,14 @@ fn to_c_parameters(params: &Vec<VariableDeclaration>) -> String {
 
         match param.var_type.clone() {
             VariableType::SimpleType { var_type } => {
-                res.push_str(format!("{}* {}", to_c_type(&var_type), param.id.clone()).as_str());
+                res.push_str(
+                    format!("{}* ptr_{}", to_c_type(&var_type), param.id.clone()).as_str(),
+                );
             }
             VariableType::ArrayType { var_type, size: _ } => {
-                res.push_str(format!("{}* {}[]", to_c_type(&var_type), param.id.clone()).as_str());
+                res.push_str(
+                    format!("{}* ptr_{}[]", to_c_type(&var_type), param.id.clone()).as_str(),
+                );
             }
             _ => {}
         }
