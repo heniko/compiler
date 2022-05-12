@@ -131,6 +131,8 @@ impl CodeGenerator {
         self.add_line("int main(){".to_string());
         // Generate code for statements
         self.statement(main);
+        // Jump point for early return statements
+        self.add_line("end:;".to_string());
         // Return 0 as is expected by C (but not by MiniPL)
         self.add_line("return 0;".to_string());
         self.add_line("}".to_string());
@@ -269,6 +271,7 @@ impl CodeGenerator {
                 value: _,
                 statement: _,
             } => self.while_statement(stmt),
+            Statement::Return { value:_ } => self.return_statement(stmt),
             _ => {}
         }
     }
@@ -420,6 +423,19 @@ impl CodeGenerator {
             self.add_line(format!("goto {};", start));
             // Jump point for exiting loop
             self.add_line(format!("{}:;", end));
+        }
+    }
+
+    fn return_statement(&mut self, stmt: &Statement) {
+        if let Statement::Return { value } = stmt {
+            if let Expression::None = value {
+                // Either procedure or main
+                self.add_line("goto end;".to_string());
+            }else {
+                // Function return statement
+                self.expression(&"return_value".to_string(), value);
+                self.add_line("goto end;".to_string());
+            }
         }
     }
 }
