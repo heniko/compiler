@@ -127,6 +127,9 @@ impl CodeGenerator {
             Statement::Block { statements:_ }=>self.block(stmt),
             Statement::VariableDeclaration { variables:_ } => self.variable_declaration(stmt),
             Statement::Assignment { var:_, value:_ } => self.assignment(stmt),
+            Statement::If { value:_, statement:_ } => self.if_statement(stmt),
+            Statement::IfElse { value:_ , if_statement: _, else_statement: _ } => self.if_else_statement(stmt),
+            Statement::While { value:_, statement: _ } => self.while_statement(stmt),
             _=>{}
         }
     }
@@ -206,6 +209,66 @@ impl CodeGenerator {
                     _ => {}
                 }
             }
+        }
+    }
+
+    fn if_statement(&mut self, stmt: &Statement) {
+        if let Statement::If { value, statement } = stmt {
+            /*
+            Generate boolean variable for the condition, evaluate
+            condition expression and then skip generated statements
+            if the condition is false.
+            */
+            let condition = self.generate_var();
+            self.add_line(format!("bool *{} = NULL;", condition));
+            self.expression(&condition, value);
+            let end = self.generate_var();
+            self.add_line(format!("if (!{}) goto {};", condition, end));
+            self.statement(statement.as_ref());
+            self.add_line(format!("{}:", end));
+        }
+    }
+
+    fn if_else_statement(&mut self, stmt: &Statement) {
+        if let Statement::IfElse { value, if_statement, else_statement } = stmt {
+            // Evaluate condition
+            let condition = self.generate_var();
+            self.add_line(format!("bool *{} = NULL;", condition));
+            self.expression(&condition, value);
+            // Create jump point variables
+            let els = self.generate_var();
+            let end = self.generate_var();
+            // If true -> continue here, if false -> jump to else block
+            self.add_line(format!("if (!{}) goto {};", condition, els));
+            // Generate code for if block and skip else code
+            self.statement(if_statement);
+            self.add_line(format!("goto {};", end));
+            // Generate code for else
+            self.add_line(format!("{}:", els));
+            self.statement(else_statement);
+            // Add end jump point for exiting if block
+            self.add_line(format!("{}:", end));
+        }
+    }
+
+    fn while_statement(&mut self, stmt:&Statement) {
+        if let Statement::While {value, statement} = stmt {
+            // Create variables for start and end jump points
+            let end = self.generate_var();
+            let start = self.generate_var();
+            // Jump point for loop start
+            self.add_line(format!("{}:", start));
+            // Evaluate condition
+            let condition = self.generate_var();
+            self.expression(&condition, value);
+            // If condition is false then jump out
+            self.add_line(format!("if (!{}) goto {};", condition, end));
+            // Statement that will be executed in loop
+            self.statement(statement);
+            // Jump back to beginning of the loop
+            self.add_line(format!("goto {};", start));
+            // Jump point for exiting loop
+            self.add_line(format!("{}:", end));
         }
     }
 }

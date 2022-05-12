@@ -6,4 +6,6 @@ begin
   arr[1] := 0;
   arr[2] := arr[1];
   arr[3] := arr[arr[1]];
+  if true then arr[1] := 2; 
+  else arr[1] := 1;
 end.
