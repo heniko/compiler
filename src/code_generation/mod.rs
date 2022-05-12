@@ -271,7 +271,7 @@ impl CodeGenerator {
                 value: _,
                 statement: _,
             } => self.while_statement(stmt),
-            Statement::Return { value:_ } => self.return_statement(stmt),
+            Statement::Return { value: _ } => self.return_statement(stmt),
             _ => {}
         }
     }
@@ -431,7 +431,7 @@ impl CodeGenerator {
             if let Expression::None = value {
                 // Either procedure or main
                 self.add_line("goto end;".to_string());
-            }else {
+            } else {
                 // Function return statement
                 self.expression(&"return_value".to_string(), value);
                 self.add_line("goto end;".to_string());
@@ -490,18 +490,24 @@ impl CodeGenerator {
                 self.expression_recursion(value);
                 let l = self.get_latest_var();
                 let v = self.generate_var();
-                match op.as_ref() {
-                    Expression::Not => {
-                        self.add_line(format!("{} = !{};", v, l));
-                    }
-                    Expression::Minus => {
-                        todo!();
-                    }
-                    _ => {}
-                }
+                self.add_line(format!("{} = {} {};", v, l, to_c_operator(op.as_ref())));
             }
             Expression::Binary { op, left, right } => {
-                todo!();
+                // Evaluate left
+                self.expression_recursion(left);
+                let l = self.get_latest_var();
+                // Evaluate right
+                self.expression_recursion(right);
+                let r = self.get_latest_var();
+                // Evaluate expression
+                let v = self.generate_var();
+                self.add_line(format!(
+                    "{} = {} {} {};",
+                    v,
+                    l,
+                    to_c_operator(op.as_ref()),
+                    r
+                ));
             }
             Expression::Function { id, arguments } => {
                 todo!();
@@ -601,4 +607,24 @@ fn to_c_parameters(params: &Vec<VariableDeclaration>) -> String {
     }
 
     res
+}
+
+fn to_c_operator(op: &Expression) -> String {
+    return match op {
+        Expression::And => "&&".to_string(),
+        Expression::Or => "||".to_string(),
+        Expression::Not => "!".to_string(),
+        Expression::Le => "<".to_string(),
+        Expression::Ge => ">".to_string(),
+        Expression::Leq => "<=".to_string(),
+        Expression::Geq => ">=".to_string(),
+        Expression::Eq => "==".to_string(),
+        Expression::Inequality => "!=".to_string(),
+        Expression::Minus => "-".to_string(),
+        Expression::Plus => "+".to_string(),
+        Expression::Divide => "/".to_string(),
+        Expression::Multiply => "*".to_string(),
+        Expression::Modulo => "%".to_string(),
+        _ => "NOT_AN_OPERATOR".to_string(),
+    };
 }
