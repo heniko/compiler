@@ -59,7 +59,7 @@ impl CodeGenerator {
     */
     fn create_forward_declarations(&mut self, ast: &AST) {
         if let AST::Program {
-            id,
+            id: _,
             functions,
             procedures,
             main,
