@@ -1,7 +1,7 @@
 use crate::parser::{
-    Expression, Statement, VariableAccess, VariableDeclaration, VariableType, AST
+    Expression, Statement, VariableAccess, VariableDeclaration, VariableType, AST,
 };
-use crate::semantic_analysis::{Scope, IdType, Variable};
+use crate::semantic_analysis::{IdType, Scope, Variable};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CodeGenerator {
@@ -15,7 +15,7 @@ impl CodeGenerator {
         let mut code_gen = CodeGenerator {
             source: String::new(),
             var_count: 0,
-            scope
+            scope,
         };
         code_gen.generate(&ast);
         code_gen
@@ -106,7 +106,7 @@ impl CodeGenerator {
         self.add_line("int main(){".to_string());
 
         if let Statement::Block { statements } = main {
-            for stmt in statements.iter(){
+            for stmt in statements.iter() {
                 self.statement(stmt);
             }
         }
@@ -118,17 +118,27 @@ impl CodeGenerator {
 
     fn statement(&mut self, stmt: &Statement) {
         match stmt {
-            Statement::Block { statements:_ }=>self.block(stmt),
-            Statement::VariableDeclaration { variables:_ } => self.variable_declaration(stmt),
-            Statement::Assignment { var:_, value:_ } => self.assignment(stmt),
-            Statement::If { value:_, statement:_ } => self.if_statement(stmt),
-            Statement::IfElse { value:_ , if_statement: _, else_statement: _ } => self.if_else_statement(stmt),
-            Statement::While { value:_, statement: _ } => self.while_statement(stmt),
-            _=>{}
+            Statement::Block { statements: _ } => self.block(stmt),
+            Statement::VariableDeclaration { variables: _ } => self.variable_declaration(stmt),
+            Statement::Assignment { var: _, value: _ } => self.assignment(stmt),
+            Statement::If {
+                value: _,
+                statement: _,
+            } => self.if_statement(stmt),
+            Statement::IfElse {
+                value: _,
+                if_statement: _,
+                else_statement: _,
+            } => self.if_else_statement(stmt),
+            Statement::While {
+                value: _,
+                statement: _,
+            } => self.while_statement(stmt),
+            _ => {}
         }
     }
 
-    fn assignment(&mut self, stmt:&Statement){
+    fn assignment(&mut self, stmt: &Statement) {
         if let Statement::Assignment { var, value } = stmt {
             match var {
                 VariableAccess::SimpleAccess { id } => {
@@ -140,21 +150,20 @@ impl CodeGenerator {
                     self.expression(&i, index.as_ref());
                     self.expression(&format!("{}[{}]", id, i), value);
                 }
-                _=>{}
+                _ => {}
             }
-            
         }
     }
 
-    fn block(&mut self, stmt: &Statement){
+    fn block(&mut self, stmt: &Statement) {
         self.scope.add_local_scope();
         self.add_line("{".to_string());
-        
+
         self.add_line("}".to_string());
         self.scope.drop_local_scope();
     }
 
-    fn variable_declaration(&mut self, stmt:&Statement) {
+    fn variable_declaration(&mut self, stmt: &Statement) {
         // Check that statement is variable declaration
         if let Statement::VariableDeclaration { variables } = stmt {
             // Iterate over all declarations since there may be many
@@ -164,23 +173,43 @@ impl CodeGenerator {
                 match var_type {
                     VariableType::SimpleType { var_type } => {
                         self.add_line(format!("{} {};", to_c_type(&var_type), dec.id.clone()));
-                        self.scope.init_var(dec.id.clone(), IdType::SimpleType{var_type:self.scope.string_to_atomic(&var_type)});
+                        self.scope.init_var(
+                            dec.id.clone(),
+                            IdType::SimpleType {
+                                var_type: self.scope.string_to_atomic(&var_type),
+                            },
+                        );
                     }
-                    VariableType::ArrayType { var_type, size}=>{
+                    VariableType::ArrayType { var_type, size } => {
                         let size_var = self.generate_var();
                         self.add_line(format!("int {};", size_var));
                         self.expression(&size_var, &size);
 
                         match var_type.as_str() {
                             "string" => {
-                                self.add_line(format!("{} {}[{}];", to_c_type(&var_type), dec.id.clone(), size_var));
+                                self.add_line(format!(
+                                    "{} {}[{}];",
+                                    to_c_type(&var_type),
+                                    dec.id.clone(),
+                                    size_var
+                                ));
                             }
-                            _=>{
-                                self.add_line(format!("{} {}[{}];", to_c_type(&var_type), dec.id.clone(), size_var));
+                            _ => {
+                                self.add_line(format!(
+                                    "{} {}[{}];",
+                                    to_c_type(&var_type),
+                                    dec.id.clone(),
+                                    size_var
+                                ));
                             }
                         }
 
-                        self.scope.init_var(dec.id.clone(), IdType::ArrayType{var_type:self.scope.string_to_atomic(&var_type)});
+                        self.scope.init_var(
+                            dec.id.clone(),
+                            IdType::ArrayType {
+                                var_type: self.scope.string_to_atomic(&var_type),
+                            },
+                        );
                     }
                     _ => {}
                 }
@@ -206,7 +235,12 @@ impl CodeGenerator {
     }
 
     fn if_else_statement(&mut self, stmt: &Statement) {
-        if let Statement::IfElse { value, if_statement, else_statement } = stmt {
+        if let Statement::IfElse {
+            value,
+            if_statement,
+            else_statement,
+        } = stmt
+        {
             // Evaluate condition
             let condition = self.generate_var();
             self.add_line(format!("bool {};", condition));
@@ -227,8 +261,8 @@ impl CodeGenerator {
         }
     }
 
-    fn while_statement(&mut self, stmt:&Statement) {
-        if let Statement::While {value, statement} = stmt {
+    fn while_statement(&mut self, stmt: &Statement) {
+        if let Statement::While { value, statement } = stmt {
             // Create variables for start and end jump points
             let end = self.generate_var();
             let start = self.generate_var();
@@ -267,17 +301,32 @@ impl CodeGenerator {
             Expression::IntegerLiteral { value } => {
                 let v = self.generate_var();
                 self.add_line(format!("int {} = {};", v, value));
-                self.scope.init_var(v, IdType::SimpleType { var_type: Variable::Integer });
+                self.scope.init_var(
+                    v,
+                    IdType::SimpleType {
+                        var_type: Variable::Integer,
+                    },
+                );
             }
             Expression::RealLiteral { value } => {
                 let v = self.generate_var();
-                self.add_line(format!("float {} = {};",v,value));
-                self.scope.init_var(v, IdType::SimpleType { var_type: Variable::Real });
+                self.add_line(format!("float {} = {};", v, value));
+                self.scope.init_var(
+                    v,
+                    IdType::SimpleType {
+                        var_type: Variable::Real,
+                    },
+                );
             }
-            Expression::StringLiteral { value }=>{
+            Expression::StringLiteral { value } => {
                 let v = self.generate_var();
                 self.add_line(format!("char* {} = \"{}\";", v, value));
-                self.scope.init_var(v, IdType::SimpleType { var_type: Variable::String });
+                self.scope.init_var(
+                    v,
+                    IdType::SimpleType {
+                        var_type: Variable::String,
+                    },
+                );
             }
             Expression::Variable { var } => {
                 self.variable_access(var);
@@ -293,7 +342,7 @@ impl CodeGenerator {
                     Expression::Minus => {
                         todo!();
                     }
-                    _=>{}
+                    _ => {}
                 }
             }
             Expression::Binary { op, left, right } => {
@@ -302,7 +351,7 @@ impl CodeGenerator {
             Expression::Function { id, arguments } => {
                 todo!();
             }
-            _=>{}
+            _ => {}
         }
     }
 
@@ -357,7 +406,7 @@ impl CodeGenerator {
                     }
                 }
             }
-            _=>{}
+            _ => {}
         }
     }
 }
