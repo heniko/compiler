@@ -6,6 +6,11 @@ begin
   tmp := i; i := j; j := tmp;
 end;
 
+function M (n : integer) : integer;
+begin
+  return 1;
+end;
+
 begin
   var i : integer;
 end.

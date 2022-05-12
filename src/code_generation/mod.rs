@@ -27,18 +27,31 @@ impl CodeGenerator {
     }
 
     fn generate(&mut self, ast: &AST) {
-        // Add stdio.h for printf and scanf
-        self.add_line("#include <stdio.h>".to_string());
-        self.add_line("#include <stdbool.h>".to_string());
-        self.add_line("".to_string());
-        /*
-        TODO: user_true and user_false can be overwritten
-        */
-        self.add_line("bool user_true = true;".to_string());
-        self.add_line("bool user_false = false;".to_string());
-        self.add_line("".to_string());
-        self.create_forward_declarations(ast);
-        self.add_line("".to_string());
+        if let AST::Program {
+            id,
+            functions,
+            procedures,
+            main,
+        } = ast
+        {
+            // Add stdio.h for printf and scanf
+            self.add_line("#include <stdio.h>".to_string());
+            // Add stdbool.h for dealing with booleans
+            self.add_line("#include <stdbool.h>".to_string());
+            self.add_line("".to_string());
+            /*
+            TODO: user_true and user_false can be overwritten
+            */
+            self.add_line("bool user_true = true;".to_string());
+            self.add_line("bool user_false = false;".to_string());
+            self.add_line("".to_string());
+            self.create_forward_declarations(ast);
+            self.generate_procedures(procedures);
+            self.generate_functions(functions);
+            // Generate main block
+            self.add_line("".to_string());
+            self.generate_main(main);
+        }
     }
 
     fn generate_var(&mut self) -> String {
@@ -62,7 +75,7 @@ impl CodeGenerator {
             id: _,
             functions,
             procedures,
-            main,
+            main: _,
         } = ast
         {
             // Function forward declarations
@@ -94,10 +107,20 @@ impl CodeGenerator {
                     self.add_line(format!("void {}({});", id, to_c_parameters(parameters)));
                 }
             }
+        }
+    }
 
-            // Generate main block
+    fn generate_procedures(&mut self, procedures: &Vec<AST>) {
+        for procedure in procedures.iter() {
             self.add_line("".to_string());
-            self.generate_main(main);
+            self.generate_procedure(procedure);
+        }
+    }
+
+    fn generate_functions(&mut self, functions: &Vec<AST>) {
+        for function in functions.iter() {
+            self.add_line("".to_string());
+            self.generate_function(function);
         }
     }
 
@@ -113,6 +136,118 @@ impl CodeGenerator {
         self.add_line("}".to_string());
         // Drop local scope
         self.scope.drop_local_scope();
+    }
+
+    fn generate_procedure(&mut self, procedure: &AST) {
+        if let AST::Procedure {
+            id,
+            parameters,
+            block,
+        } = procedure
+        {
+            self.scope.add_local_scope();
+            self.add_line(format!("void {}({}) {{", id, to_c_parameters(parameters)));
+            self.create_parameter_derefs(parameters);
+            self.statement(block);
+            self.add_line("end:;".to_string());
+            self.move_values_to_parameter_pointer(parameters);
+            self.add_line("}".to_string());
+            self.scope.drop_local_scope();
+        }
+    }
+
+    fn generate_function(&mut self, function: &AST) {
+        if let AST::Function {
+            id,
+            parameters,
+            block,
+            res_type,
+        } = function
+        {
+            self.scope.add_local_scope();
+            self.add_line(format!(
+                "{} {}({}) {{",
+                to_c_type(res_type),
+                id,
+                to_c_parameters(parameters)
+            ));
+            self.add_line(format!("{} return_value;", to_c_type(res_type)));
+            self.create_parameter_derefs(parameters);
+            self.statement(block);
+            self.add_line("end:;".to_string());
+            self.move_values_to_parameter_pointer(parameters);
+            self.add_line("return return_value;".to_string());
+            self.add_line("}".to_string());
+            self.scope.drop_local_scope();
+        }
+    }
+
+    fn create_parameter_derefs(&mut self, params: &Vec<VariableDeclaration>) {
+        /*
+        This function creates derefenced copy variables
+        of function parameters. This is so we don't have
+        to track if the variable is a pointer or normal value
+        type in expressions when accessing them. So in short,
+        this makes accessing variables easier to handle.
+        */
+        for param in params.iter() {
+            let t = param.var_type.clone();
+            match t {
+                VariableType::SimpleType { var_type } => {
+                    self.add_line(format!(
+                        "{} {} = *ptr_{};",
+                        to_c_type(&var_type),
+                        param.id,
+                        param.id
+                    ));
+                    self.scope.init_var(
+                        param.id.clone(),
+                        IdType::SimpleType {
+                            var_type: self.scope.string_to_atomic(&var_type),
+                        },
+                    );
+                }
+                VariableType::ArrayType { var_type, size: _ } => {
+                    self.add_line(format!(
+                        "{} {}[] = *ptr_{};",
+                        to_c_type(&var_type),
+                        param.id,
+                        param.id
+                    ));
+                    self.scope.init_var(
+                        param.id.clone(),
+                        IdType::ArrayType {
+                            var_type: self.scope.string_to_atomic(&var_type),
+                        },
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn move_values_to_parameter_pointer(&mut self, params: &Vec<VariableDeclaration>) {
+        /*
+        This is the 'opposite' function of create_parameter_derefs().
+        Since user may change the value of parameters
+        the changed values need to be stored back to
+        pointer locations at the end.
+        */
+        for param in params.iter() {
+            let t = param.var_type.clone();
+            match t {
+                VariableType::SimpleType { var_type: _ } => {
+                    self.add_line(format!("*ptr_{} = {};", param.id, param.id));
+                }
+                VariableType::ArrayType {
+                    var_type: _,
+                    size: _,
+                } => {
+                    self.add_line(format!("*ptr_{} = {};", param.id, param.id));
+                }
+                _ => {}
+            }
+        }
     }
 
     fn statement(&mut self, stmt: &Statement) {
