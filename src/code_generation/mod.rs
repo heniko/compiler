@@ -28,7 +28,7 @@ impl CodeGenerator {
 
     fn generate(&mut self, ast: &AST) {
         if let AST::Program {
-            id,
+            id: _,
             functions,
             procedures,
             main,
@@ -502,7 +502,7 @@ impl CodeGenerator {
                 // Evaluate expression
                 let v = self.generate_var();
                 self.add_line(format!(
-                    "{} = {} {} {};",
+                    "auto {} = {} {} {};",
                     v,
                     l,
                     to_c_operator(op.as_ref()),
@@ -510,10 +510,56 @@ impl CodeGenerator {
                 ));
             }
             Expression::Function { id, arguments } => {
-                todo!();
+                let v = self.generate_var();
+                let args = self.resolve_arguments(arguments);
+                self.add_line(format!("auto {} = {}({});", v, id, args));
             }
             _ => {}
         }
+    }
+
+    fn resolve_arguments(&mut self, args: &Vec<Expression>) -> String {
+        let mut arguments = String::new();
+
+        for (index, element) in args.iter().enumerate() {
+            if index > 0 {
+                arguments.push(',');
+            }
+
+            if let Expression::Variable { var } = element {
+                // For simple and array variable access we want
+                // to pass reference to the variable as an
+                // argument since procedure or function may
+                // want to change the value.
+                match var {
+                    VariableAccess::SimpleAccess { id } => {
+                        arguments.push_str(format!("&{}", id).as_str());
+                    }
+                    VariableAccess::ArrayAccess { id, index } => {
+                        let i = self.generate_var();
+                        self.add_line(format!("int {};", i));
+                        self.expression(&i, index);
+                        arguments.push_str(format!("&{}[{}]", id, i).as_str());
+                    }
+                    VariableAccess::SizeAccess { id: _ } => {
+                        let s = self.generate_var();
+                        self.add_line(format!("int {};", s));
+                        self.expression(&s, element);
+                        arguments.push_str(format!("&{}", s).as_str());
+                    }
+                    _ => {}
+                }
+            } else {
+                // Evaluate expression to tmp variable and pass
+                // reference of it as an argument
+                let v = self.generate_var();
+                self.add_line(format!("auto {};", v));
+                self.expression(&v, element);
+                arguments.push_str(format!("&{}", v).as_str());
+            }
+        }
+
+        arguments
     }
 
     fn variable_access(&mut self, var: &VariableAccess) {
