@@ -493,6 +493,7 @@ impl CodeGenerator {
                 self.add_line(format!("{} = {} {};", v, l, to_c_operator(op.as_ref())));
             }
             Expression::Binary { op, left, right } => {
+                let t = variable_to_c_type(self.scope.evaluate(expr));
                 // Evaluate left
                 self.expression_recursion(left);
                 let l = self.get_latest_var();
@@ -502,7 +503,8 @@ impl CodeGenerator {
                 // Evaluate expression
                 let v = self.generate_var();
                 self.add_line(format!(
-                    "auto {} = {} {} {};",
+                    "{} {} = {} {} {};",
+                    t,
                     v,
                     l,
                     to_c_operator(op.as_ref()),
@@ -510,9 +512,19 @@ impl CodeGenerator {
                 ));
             }
             Expression::Function { id, arguments } => {
+                let func = self.scope.access_var(id.clone()).unwrap();
+
+                let t = match func {
+                    IdType::Function {
+                        parameters: _,
+                        return_type,
+                    } => variable_to_c_type(return_type),
+                    _ => "UNKNOWN_FUNC_TYPE".to_string(),
+                };
+
                 let v = self.generate_var();
                 let args = self.resolve_arguments(arguments);
-                self.add_line(format!("auto {} = {}({});", v, id, args));
+                self.add_line(format!("{} {} = {}({});", t, v, id, args));
             }
             _ => {}
         }
@@ -553,7 +565,8 @@ impl CodeGenerator {
                 // Evaluate expression to tmp variable and pass
                 // reference of it as an argument
                 let v = self.generate_var();
-                self.add_line(format!("auto {};", v));
+                let t = variable_to_c_type(self.scope.evaluate(element));
+                self.add_line(format!("{} {};", t, v));
                 self.expression(&v, element);
                 arguments.push_str(format!("&{}", v).as_str());
             }
@@ -615,6 +628,16 @@ impl CodeGenerator {
             }
             _ => {}
         }
+    }
+}
+
+fn variable_to_c_type(v: Variable) -> String {
+    match v {
+        Variable::Boolean => "bool".to_string(),
+        Variable::Integer => "int".to_string(),
+        Variable::Real => "float".to_string(),
+        Variable::String => "char*".to_string(),
+        _ => format!("{:?}", v),
     }
 }
 

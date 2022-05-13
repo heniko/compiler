@@ -100,6 +100,178 @@ impl Scope {
             _ => Variable::Error,
         }
     }
+
+    pub fn evaluate(&mut self, expr: &Expression) -> Variable {
+        match expr {
+            Expression::None => Variable::None,
+            Expression::RealLiteral { value: _ } => Variable::Real,
+            Expression::StringLiteral { value: _ } => Variable::String,
+            Expression::IntegerLiteral { value: _ } => Variable::Integer,
+            Expression::Variable { var } => self.evaluate_id(var),
+            Expression::Function {
+                id: _,
+                arguments: _,
+            } => self.evaluate_function_call(expr),
+            Expression::Unary { op: _, value: _ } => self.evaluate_unary(expr),
+            Expression::Binary {
+                op: _,
+                left: _,
+                right: _,
+            } => self.evaluate_binary(expr),
+            _ => Variable::Error,
+        }
+    }
+
+    fn evaluate_unary(&mut self, expr: &Expression) -> Variable {
+        if let Expression::Unary { op, value } = expr {
+            let op_unboxed = op.as_ref().clone();
+            let value_evaluated = self.evaluate(value.as_ref());
+            match op_unboxed {
+                Expression::Not => match value_evaluated {
+                    Variable::Boolean => Variable::Boolean,
+                    _ => Variable::Error,
+                },
+                Expression::Plus | Expression::Minus => match value_evaluated {
+                    Variable::Real => Variable::Real,
+                    Variable::Integer => Variable::Integer,
+                    _ => Variable::Error,
+                },
+                _ => Variable::Error,
+            }
+        } else {
+            Variable::Error
+        }
+    }
+
+    fn evaluate_binary(&mut self, expr: &Expression) -> Variable {
+        /*
+        Strategy here is to recursively find the evaluation of
+        right and left. Then for each operation we have some
+        pairs that the operation can handle. For example you
+        can add two strings but not multiply them. Dealing with
+        real equality errors is left for the programmer to handle
+        since our language allows such operations even if using
+        them usually doesn't make much sense.
+        */
+        if let Expression::Binary { op, left, right } = expr {
+            let op_unboxed = op.as_ref().clone();
+            let left_evaluated = self.evaluate(left.as_ref());
+            let right_evaluated = self.evaluate(right.as_ref());
+            let tuple = (right_evaluated, left_evaluated);
+            match op_unboxed {
+                Expression::Plus => match tuple {
+                    (Variable::Real, Variable::Real) => Variable::Real,
+                    (Variable::Integer, Variable::Integer) => Variable::Integer,
+                    (Variable::String, Variable::String) => Variable::String,
+                    (Variable::Real, Variable::Integer) => Variable::Real,
+                    _ => Variable::Error,
+                },
+                Expression::Minus | Expression::Multiply | Expression::Divide => match tuple {
+                    (Variable::Real, Variable::Real) => Variable::Real,
+                    (Variable::Integer, Variable::Integer) => Variable::Integer,
+                    (Variable::Real, Variable::Integer) => Variable::Real,
+                    (Variable::Integer, Variable::Real) => Variable::Real,
+                    _ => Variable::Error,
+                },
+                Expression::Modulo => match tuple {
+                    (Variable::Integer, Variable::Integer) => Variable::Integer,
+                    _ => Variable::Error,
+                },
+                Expression::Or | Expression::And => match tuple {
+                    (Variable::Boolean, Variable::Boolean) => Variable::Boolean,
+                    _ => Variable::Error,
+                },
+                Expression::Le | Expression::Leq | Expression::Ge | Expression::Geq => {
+                    match tuple {
+                        (Variable::Real, Variable::Real) => Variable::Boolean,
+                        (Variable::Integer, Variable::Integer) => Variable::Boolean,
+                        (Variable::Real, Variable::Integer) => Variable::Boolean,
+                        (Variable::Integer, Variable::Real) => Variable::Boolean,
+                        _ => Variable::Error,
+                    }
+                }
+                Expression::Inequality | Expression::Eq => match tuple {
+                    (Variable::Real, Variable::Real) => Variable::Boolean,
+                    (Variable::Integer, Variable::Integer) => Variable::Boolean,
+                    (Variable::Real, Variable::Integer) => Variable::Boolean,
+                    (Variable::Integer, Variable::Real) => Variable::Boolean,
+                    (Variable::Boolean, Variable::Boolean) => Variable::Boolean,
+                    _ => Variable::Error,
+                },
+                _ => Variable::Error,
+            }
+        } else {
+            Variable::Error
+        }
+    }
+
+    fn evaluate_function_call(&mut self, expr: &Expression) -> Variable {
+        if let Expression::Function { arguments, id } = expr {
+            let stored = self.access_var(id.clone());
+
+            return if let Some(IdType::Function {
+                parameters,
+                return_type,
+            }) = stored
+            {
+                //self.match_parameters_and_arguments(&parameters, &arguments);
+
+                return_type.clone()
+            } else {
+                Variable::Error
+            };
+        } else {
+            Variable::Error
+        }
+    }
+
+    fn evaluate_id(&mut self, var: &VariableAccess) -> Variable {
+        return match var {
+            VariableAccess::SimpleAccess { id } => {
+                let stored = self.access_var(id.clone());
+
+                if let Some(v) = stored {
+                    match v {
+                        IdType::SimpleType { var_type } => var_type.clone(),
+                        _ => Variable::Error,
+                    }
+                } else {
+                    Variable::Error
+                }
+            }
+            VariableAccess::ArrayAccess { id, index } => {
+                let stored = self.access_var(id.clone());
+
+                /*
+                if self.evaluate(index) != Variable::Integer {
+                    self.errors
+                        .push(String::from("Array index needs to be integer."));
+                }
+                */
+
+                if let Some(v) = stored {
+                    match v {
+                        IdType::ArrayType { var_type } => var_type.clone(),
+                        _ => Variable::Error,
+                    }
+                } else {
+                    Variable::Error
+                }
+            }
+            VariableAccess::SizeAccess { id } => {
+                let stored = self.access_var(id.clone());
+
+                // TODO: Check that size is not redefined on scope.
+
+                if let Some(IdType::ArrayType { var_type: _ }) = stored {
+                    Variable::Integer
+                } else {
+                    Variable::Error
+                }
+            }
+            _ => Variable::Error,
+        };
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -540,6 +712,7 @@ impl SemanticAnalyzer {
         }
     }
 
+    /*
     fn match_parameters_and_arguments(
         &mut self,
         params: &Parameters,
@@ -563,182 +736,8 @@ impl SemanticAnalyzer {
             }
         }
     }
-}
-
-/*
-Contains methods used for evaluating expressions.
-*/
-impl SemanticAnalyzer {
-    /*
-    Entry point for checking expression type.
     */
     fn evaluate(&mut self, expr: &Expression) -> Variable {
-        match expr {
-            Expression::None => Variable::None,
-            Expression::RealLiteral { value: _ } => Variable::Real,
-            Expression::StringLiteral { value: _ } => Variable::String,
-            Expression::IntegerLiteral { value: _ } => Variable::Integer,
-            Expression::Variable { var } => self.evaluate_id(var),
-            Expression::Function {
-                id: _,
-                arguments: _,
-            } => self.evaluate_function_call(expr),
-            Expression::Unary { op: _, value: _ } => self.evaluate_unary(expr),
-            Expression::Binary {
-                op: _,
-                left: _,
-                right: _,
-            } => self.evaluate_binary(expr),
-            _ => Variable::Error,
-        }
-    }
-
-    fn evaluate_unary(&mut self, expr: &Expression) -> Variable {
-        if let Expression::Unary { op, value } = expr {
-            let op_unboxed = op.as_ref().clone();
-            let value_evaluated = self.evaluate(value.as_ref());
-            match op_unboxed {
-                Expression::Not => match value_evaluated {
-                    Variable::Boolean => Variable::Boolean,
-                    _ => Variable::Error,
-                },
-                Expression::Plus | Expression::Minus => match value_evaluated {
-                    Variable::Real => Variable::Real,
-                    Variable::Integer => Variable::Integer,
-                    _ => Variable::Error,
-                },
-                _ => Variable::Error,
-            }
-        } else {
-            Variable::Error
-        }
-    }
-
-    fn evaluate_binary(&mut self, expr: &Expression) -> Variable {
-        /*
-        Strategy here is to recursively find the evaluation of
-        right and left. Then for each operation we have some
-        pairs that the operation can handle. For example you
-        can add two strings but not multiply them. Dealing with
-        real equality errors is left for the programmer to handle
-        since our language allows such operations even if using
-        them usually doesn't make much sense.
-        */
-        if let Expression::Binary { op, left, right } = expr {
-            let op_unboxed = op.as_ref().clone();
-            let left_evaluated = self.evaluate(left.as_ref());
-            let right_evaluated = self.evaluate(right.as_ref());
-            let tuple = (right_evaluated, left_evaluated);
-            match op_unboxed {
-                Expression::Plus => match tuple {
-                    (Variable::Real, Variable::Real) => Variable::Real,
-                    (Variable::Integer, Variable::Integer) => Variable::Integer,
-                    (Variable::String, Variable::String) => Variable::String,
-                    (Variable::Real, Variable::Integer) => Variable::Real,
-                    _ => Variable::Error,
-                },
-                Expression::Minus | Expression::Multiply | Expression::Divide => match tuple {
-                    (Variable::Real, Variable::Real) => Variable::Real,
-                    (Variable::Integer, Variable::Integer) => Variable::Integer,
-                    (Variable::Real, Variable::Integer) => Variable::Real,
-                    (Variable::Integer, Variable::Real) => Variable::Real,
-                    _ => Variable::Error,
-                },
-                Expression::Modulo => match tuple {
-                    (Variable::Integer, Variable::Integer) => Variable::Integer,
-                    _ => Variable::Error,
-                },
-                Expression::Or | Expression::And => match tuple {
-                    (Variable::Boolean, Variable::Boolean) => Variable::Boolean,
-                    _ => Variable::Error,
-                },
-                Expression::Le | Expression::Leq | Expression::Ge | Expression::Geq => {
-                    match tuple {
-                        (Variable::Real, Variable::Real) => Variable::Boolean,
-                        (Variable::Integer, Variable::Integer) => Variable::Boolean,
-                        (Variable::Real, Variable::Integer) => Variable::Boolean,
-                        (Variable::Integer, Variable::Real) => Variable::Boolean,
-                        _ => Variable::Error,
-                    }
-                }
-                Expression::Inequality | Expression::Eq => match tuple {
-                    (Variable::Real, Variable::Real) => Variable::Boolean,
-                    (Variable::Integer, Variable::Integer) => Variable::Boolean,
-                    (Variable::Real, Variable::Integer) => Variable::Boolean,
-                    (Variable::Integer, Variable::Real) => Variable::Boolean,
-                    (Variable::Boolean, Variable::Boolean) => Variable::Boolean,
-                    _ => Variable::Error,
-                },
-                _ => Variable::Error,
-            }
-        } else {
-            Variable::Error
-        }
-    }
-
-    fn evaluate_function_call(&mut self, expr: &Expression) -> Variable {
-        if let Expression::Function { arguments, id } = expr {
-            let stored = self.scope.access_var(id.clone());
-
-            return if let Some(IdType::Function {
-                parameters,
-                return_type,
-            }) = stored
-            {
-                self.match_parameters_and_arguments(&parameters, &arguments);
-
-                return_type.clone()
-            } else {
-                Variable::Error
-            };
-        } else {
-            Variable::Error
-        }
-    }
-
-    fn evaluate_id(&mut self, var: &VariableAccess) -> Variable {
-        return match var {
-            VariableAccess::SimpleAccess { id } => {
-                let stored = self.scope.access_var(id.clone());
-
-                if let Some(v) = stored {
-                    match v {
-                        IdType::SimpleType { var_type } => var_type.clone(),
-                        _ => Variable::Error,
-                    }
-                } else {
-                    Variable::Error
-                }
-            }
-            VariableAccess::ArrayAccess { id, index } => {
-                let stored = self.scope.access_var(id.clone());
-
-                if self.evaluate(index) != Variable::Integer {
-                    self.errors
-                        .push(String::from("Array index needs to be integer."));
-                }
-
-                if let Some(v) = stored {
-                    match v {
-                        IdType::ArrayType { var_type } => var_type.clone(),
-                        _ => Variable::Error,
-                    }
-                } else {
-                    Variable::Error
-                }
-            }
-            VariableAccess::SizeAccess { id } => {
-                let stored = self.scope.access_var(id.clone());
-
-                // TODO: Check that size is not redefined ion scope.
-
-                if let Some(IdType::ArrayType { var_type: _ }) = stored {
-                    Variable::Integer
-                } else {
-                    Variable::Error
-                }
-            }
-            _ => Variable::Error,
-        };
+        self.scope.evaluate(expr)
     }
 }
