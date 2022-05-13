@@ -5,6 +5,11 @@ begin
   i := i + 1;
 end;
 
+procedure plus_one(i:integer, arr:array [] of integer);
+begin
+  i := i + 1;
+end;
+
 begin
   var i : integer;
   plus_one(i);

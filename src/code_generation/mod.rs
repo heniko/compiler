@@ -210,12 +210,12 @@ impl CodeGenerator {
                     );
                 }
                 VariableType::ArrayType { var_type, size: _ } => {
-                    self.add_line(format!(
+                    /*self.add_line(format!(
                         "{} {}[] = *ptr_{};",
                         to_c_type(&var_type),
                         param.id,
                         param.id
-                    ));
+                    ));*/
                     self.scope.init_var(
                         param.id.clone(),
                         IdType::ArrayType {
@@ -241,12 +241,12 @@ impl CodeGenerator {
                 VariableType::SimpleType { var_type: _ } => {
                     self.add_line(format!("*ptr_{} = {};", param.id, param.id));
                 }
-                VariableType::ArrayType {
+                /*VariableType::ArrayType {
                     var_type: _,
                     size: _,
                 } => {
                     self.add_line(format!("*ptr_{} = {};", param.id, param.id));
-                }
+                }*/
                 _ => {}
             }
         }
@@ -668,7 +668,7 @@ fn to_c_parameters(params: &Vec<VariableDeclaration>) -> String {
             }
             VariableType::ArrayType { var_type, size: _ } => {
                 res.push_str(
-                    format!("{}* ptr_{}[]", to_c_type(&var_type), param.id.clone()).as_str(),
+                    format!("{} {}[]", to_c_type(&var_type), param.id.clone()).as_str(),
                 );
             }
             _ => {}
