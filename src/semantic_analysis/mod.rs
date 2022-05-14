@@ -737,6 +737,7 @@ impl SemanticAnalyzer {
         }
     }
     */
+
     fn evaluate(&mut self, expr: &Expression) -> Variable {
         self.scope.evaluate(expr)
     }

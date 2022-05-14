@@ -1,7 +1,7 @@
 use crate::parser::{
     Expression, Statement, VariableAccess, VariableDeclaration, VariableType, AST,
 };
-use crate::semantic_analysis::{IdType, Scope, Variable};
+use crate::semantic_analysis::{IdType, Parameters, Scope, Variable};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CodeGenerator {
@@ -272,6 +272,10 @@ impl CodeGenerator {
                 statement: _,
             } => self.while_statement(stmt),
             Statement::Return { value: _ } => self.return_statement(stmt),
+            Statement::Call {
+                id: _,
+                arguments: _,
+            } => self.call_statement(stmt),
             _ => {}
         }
     }
@@ -323,28 +327,16 @@ impl CodeGenerator {
                         );
                     }
                     VariableType::ArrayType { var_type, size } => {
-                        let size_var = self.generate_var();
+                        let size_var = format!("size_{}", dec.id.clone());
                         self.add_line(format!("int {};", size_var));
                         self.expression(&size_var, &size);
 
-                        match var_type.as_str() {
-                            "string" => {
-                                self.add_line(format!(
-                                    "{} {}[{}];",
-                                    to_c_type(&var_type),
-                                    dec.id.clone(),
-                                    size_var
-                                ));
-                            }
-                            _ => {
-                                self.add_line(format!(
-                                    "{} {}[{}];",
-                                    to_c_type(&var_type),
-                                    dec.id.clone(),
-                                    size_var
-                                ));
-                            }
-                        }
+                        self.add_line(format!(
+                            "{} {}[{}];",
+                            to_c_type(&var_type),
+                            dec.id.clone(),
+                            size_var
+                        ));
 
                         self.scope.init_var(
                             dec.id.clone(),
@@ -429,7 +421,7 @@ impl CodeGenerator {
     fn return_statement(&mut self, stmt: &Statement) {
         if let Statement::Return { value } = stmt {
             if let Expression::None = value {
-                // Either procedure or main
+                // Either procedure or main which has no return value in MiniPL
                 self.add_line("goto end;".to_string());
             } else {
                 // Function return statement
@@ -437,6 +429,75 @@ impl CodeGenerator {
                 self.add_line("goto end;".to_string());
             }
         }
+    }
+
+    fn call_statement(&mut self, stmt: &Statement) {
+        /*
+        For normal functions resolve arguments and create function call.
+        For writeln and read we need to check what they mean in the scope
+        and if they are not overwritten we need to create prints using
+        multiple C printf() or scanf() calls.
+        */
+        if let Statement::Call { id, arguments } = stmt {
+            if id.as_str() == "user_writeln" {
+                let print = self.scope.access_var(id.clone()).unwrap();
+                if let IdType::Procedure {
+                    parameters: Parameters::Any,
+                } = print
+                {
+                    // Call identifier is 'writeln' and 'writeln' is not overwritten
+                    for arg in arguments.iter() {
+                        self.c_printf(arg);
+                    }
+                    self.add_line("printf(\"\\n\");".to_string()); // Line change in the end
+                    return; // Early return to escape default case
+                }
+            } else if id.as_str() == "user_read" {
+                let read = self.scope.access_var(id.clone()).unwrap();
+                if let IdType::Procedure {
+                    parameters: Parameters::Any,
+                } = read
+                {
+                    // Call identifier is 'read' and 'read' is not overwritten
+                    for arg in arguments.iter() {
+                        self.c_scanf(arg);
+                    }
+                    return; // Early return to escape default case
+                }
+            }
+            // If predefined functions were overwritten or if the
+            // function name is not a predefined identifier we end
+            // up here (default case).
+            let args = self.resolve_arguments(arguments);
+            self.add_line(format!("{}({});", id, args));
+        }
+    }
+
+    fn c_printf(&mut self, expr: &Expression) {
+        let t = self.scope.evaluate(expr);
+        let output = self.generate_var();
+        self.add_line(format!("{} {};", variable_to_c_type(t.clone()), output));
+        self.expression(&output, expr);
+
+        match t {
+            Variable::Boolean => {
+                self.add_line(format!("printf(\"%s\", {}?\"true\":\"false\");", output));
+            }
+            Variable::Integer => {
+                self.add_line(format!("printf(\"%d\", {});", output));
+            }
+            Variable::Real => {
+                self.add_line(format!("printf(\"%f\", {});", output));
+            }
+            Variable::String => {
+                self.add_line(format!("printf(\"%s\", {});", output));
+            }
+            _ => {}
+        }
+    }
+
+    fn c_scanf(&mut self, expr: &Expression) {
+        todo!();
     }
 }
 
@@ -579,7 +640,7 @@ impl CodeGenerator {
         match var {
             VariableAccess::SizeAccess { id } => {
                 let v = self.generate_var();
-                self.add_line(format!("int {} = sizeof({}) / sizeof({}[0]);", v, id, id));
+                self.add_line(format!("int {} = size_{};", v, id));
             }
             VariableAccess::SimpleAccess { id } => {
                 let t = self.scope.access_var(id.clone()).unwrap();
@@ -668,7 +729,13 @@ fn to_c_parameters(params: &Vec<VariableDeclaration>) -> String {
             }
             VariableType::ArrayType { var_type, size: _ } => {
                 res.push_str(
-                    format!("{} {}[]", to_c_type(&var_type), param.id.clone()).as_str(),
+                    format!(
+                        "{} {}[], int size_{}",
+                        to_c_type(&var_type),
+                        param.id.clone().as_str(),
+                        param.id.clone()
+                    )
+                    .as_str(),
                 );
             }
             _ => {}
