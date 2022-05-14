@@ -497,7 +497,18 @@ impl CodeGenerator {
     }
 
     fn c_scanf(&mut self, expr: &Expression) {
-        todo!();
+        let argument = self.resolve_arguments(&vec![expr.clone()]);
+        let t = self.scope.evaluate(expr);
+
+        match t {
+            Variable::Integer => {
+                self.add_line(format!("scanf(\"%d\", {});", argument));
+            }
+            Variable::Real => {
+                self.add_line(format!("scanf(\"%f\", {});", argument));
+            }
+            _ => {}
+        }
     }
 }
 

@@ -25,4 +25,9 @@ begin
   arr[4] := 9;
   print(arr);
   writeln("(21*2)+5=", fourty_two() + 5);
+  var i_scan : integer;
+  var f_scan : real;
+  read(i_scan, f_scan);
+  writeln(i_scan);
+  writeln(f_scan);
 end.
