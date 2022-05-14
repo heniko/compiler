@@ -162,7 +162,7 @@ impl Scope {
                 Expression::Plus => match tuple {
                     (Variable::Real, Variable::Real) => Variable::Real,
                     (Variable::Integer, Variable::Integer) => Variable::Integer,
-                    (Variable::String, Variable::String) => Variable::String,
+                    //(Variable::String, Variable::String) => Variable::String,
                     (Variable::Real, Variable::Integer) => Variable::Real,
                     _ => Variable::Error,
                 },

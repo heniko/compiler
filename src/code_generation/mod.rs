@@ -606,7 +606,23 @@ impl CodeGenerator {
                 // want to change the value.
                 match var {
                     VariableAccess::SimpleAccess { id } => {
-                        arguments.push_str(format!("&{}", id).as_str());
+                        /*
+                        Simple access can be either a normal variable
+                        like integer or an array of integers but not
+                        a element of array. Passing an array also requires
+                        passing the size of the array so these need to
+                        be handled separately.
+                        */
+                        let v = self.scope.access_var(id.clone()).unwrap();
+
+                        match v {
+                            IdType::ArrayType { var_type: _ } => {
+                                arguments.push_str(format!("{}, size_{}", id, id).as_str());
+                            }
+                            _ => {
+                                arguments.push_str(format!("&{}", id).as_str());
+                            }
+                        }
                     }
                     VariableAccess::ArrayAccess { id, index } => {
                         let i = self.generate_var();

@@ -1,0 +1,28 @@
+program print_array;
+
+procedure print(arr : array [] of integer);
+begin
+  var i : integer;
+  i := 0;
+  while i < arr.size do
+  begin
+    writeln("Index: ", i, ", value: ", arr[i]);
+    i := i + 1;
+  end;
+end;
+
+function fourty_two():integer;
+begin
+  return 42;
+end;
+
+begin
+  var arr : array [5] of integer;
+  arr[0] := 0;
+  arr[1] := 1;
+  arr[2] := 2;
+  arr[3] := 3;
+  arr[4] := 9;
+  print(arr);
+  writeln("(21*2)+5=", fourty_two() + 5);
+end.
