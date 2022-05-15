@@ -276,7 +276,8 @@ impl CodeGenerator {
                 id: _,
                 arguments: _,
             } => self.call_statement(stmt),
-            _ => {}
+            Statement::Assert { value: _ } => self.assert_statement(stmt),
+            Statement::Error => {}
         }
     }
 
@@ -470,6 +471,21 @@ impl CodeGenerator {
             // up here (default case).
             let args = self.resolve_arguments(arguments);
             self.add_line(format!("{}({});", id, args));
+        }
+    }
+
+    fn assert_statement(&mut self, stmt: &Statement) {
+        if let Statement::Assert { value } = stmt {
+            // Create variable for expression
+            let condition = self.generate_var();
+            self.add_line(format!("bool {};", condition));
+            // Evaluate expression
+            self.expression(&condition, value);
+            // Print result
+            self.add_line(format!(
+                "printf(\"%s\\n\", {}?\"true\":\"false\");",
+                condition
+            ));
         }
     }
 

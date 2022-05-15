@@ -30,4 +30,6 @@ begin
   read(i_scan, f_scan);
   writeln(i_scan);
   writeln(f_scan);
+  assert(2 < 1);
+  assert(1 < 2);
 end.
