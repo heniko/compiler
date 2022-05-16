@@ -1,0 +1,7 @@
+program expressions;
+
+begin
+  var i : integer;
+  i := -1;
+  i := (i * 2) + 1;
+end.

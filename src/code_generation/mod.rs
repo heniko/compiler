@@ -575,10 +575,21 @@ impl CodeGenerator {
                 self.variable_access(var);
             }
             Expression::Unary { op, value } => {
+                // Evaluate expression
                 self.expression_recursion(value);
                 let l = self.get_latest_var();
+                // Generate temp variable
                 let v = self.generate_var();
-                self.add_line(format!("{} = {} {};", v, l, to_c_operator(op.as_ref())));
+                // Find type of result
+                let t = self.scope.evaluate(value.as_ref());
+                // Assign end result of unary to temp variable
+                self.add_line(format!(
+                    "{} {} = {} {};",
+                    variable_to_c_type(t),
+                    v,
+                    to_c_operator(op.as_ref()),
+                    l
+                ));
             }
             Expression::Binary { op, left, right } => {
                 let t = variable_to_c_type(self.scope.evaluate(expr));
@@ -598,6 +609,10 @@ impl CodeGenerator {
                     to_c_operator(op.as_ref()),
                     r
                 ));
+            }
+            Expression::Group { value } => {
+                // Evaluate grouped expression
+                self.expression_recursion(value.as_ref());
             }
             Expression::Function { id, arguments } => {
                 let func = self.scope.access_var(id.clone()).unwrap();

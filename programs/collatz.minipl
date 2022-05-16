@@ -1,0 +1,17 @@
+program examples;
+
+procedure recursive_collatz (i : integer);
+begin
+  writeln(i);
+  if i = 1 then
+    return;
+  else
+    if i % 2 = 0 then
+      recursive_collatz(i / 2);
+    else
+      recursive_collatz(3 * i + 1);
+end;
+
+begin
+  recursive_collatz(5673125);
+end.

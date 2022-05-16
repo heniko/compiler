@@ -118,7 +118,16 @@ impl Scope {
                 left: _,
                 right: _,
             } => self.evaluate_binary(expr),
+            Expression::Group {value} => self.evaluate_group(expr),
             _ => Variable::Error,
+        }
+    }
+
+    fn evaluate_group(&mut self, expr: &Expression) -> Variable {
+        if let Expression::Group { value } = expr {
+            self.evaluate(value.as_ref())
+        }else {
+            Variable::Error
         }
     }
 
@@ -623,7 +632,7 @@ impl SemanticAnalyzer {
                             if let IdType::SimpleType { var_type } = t {
                                 if var_type != eval {
                                     self.errors.push(String::from(
-                                        "Variable type and assignment evaluation missmatch.",
+                                        format!("Variable type and assignment evaluation missmatch. {:?} {:?}", var_type, eval),
                                     ));
                                 }
                             } else {

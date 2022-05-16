@@ -993,6 +993,9 @@ impl Parser {
                         value: value.clone(),
                     });
                 }
+                Token::Modulo => {
+                    expr_tokens.push(Expression::Modulo);
+                }
                 _ => {
                     // Found token that cannot be part of expression like ';'
                     break;
