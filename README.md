@@ -1,1 +1,4 @@
-# compiler
+# Compiler
+This project was made for University of Helsinki courses [Compilers](https://studies.helsinki.fi/opintotarjonta/cu/hy-CU-119366777-2021-08-01/CSM14204/Compilers) and [Code Generation](https://studies.helsinki.fi/opintotarjonta/cu/hy-CU-119366863-2021-08-01/CSM14205/Code_Generation). Project was made using Rust since I thought this project would be a perfect place to test and learn it. Due to working within the course deadlines, using a new language and this being the first compiler I have written the code is not very optimized and some parts may not even work as intended. The course is over so this project will likely not get updated.
+
+The programming language used with this compiler is Pascal-inspired (Called MiniPL). During the Code Generation course the interpreter part was discarded as the language changed a lot and now the compiler produces low level simplified (and very unoptimized) C as a target language.
